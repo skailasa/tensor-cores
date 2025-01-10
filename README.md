@@ -26,6 +26,11 @@ cmake -Damd=ON ..
 make
 ```
 
+# Run example
+```bash
+srun --ntasks=1 ./example
+```
+
 ### `include`
 
 Contains utilities
@@ -43,4 +48,10 @@ Request GPU node
 
 ```bash
 salloc --nodes=1 --ntasks-per-node=8 --gpus-per-node=8 --time=01:0:00 --partition=dev-g --account=$ACCOUNT
+```
+
+### Lint
+
+```bash
+astyle --options=.astylerc *.cpp *.hpp
 ```
