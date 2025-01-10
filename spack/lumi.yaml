@@ -1,0 +1,161 @@
+# This is a Spack Environment file.
+#
+# It describes a set of packages to be installed, along with
+# configuration settings.
+
+spack:
+  # add package specs to the `specs` list
+  compilers:
+  - compiler:
+      spec: gcc@13.2.1-env
+      paths:
+        cc: /usr/bin/gcc-13
+        cxx: /usr/bin/g++-13
+        f77: /usr/bin/gfortran-13
+        fc: /usr/bin/gfortran-13
+      flags:
+        cflags: -Ofast
+        cxxflags: -Ofast
+        fflags: -Ofast
+        ldflags: -L/opt/cray/pe/mpich/8.1.27/ofi/GNU/9.1/lib -lmpi -L/opt/cray/libfabric/1.15.2.0/lib64 -lfabric
+      operating_system: sles15
+      target: any
+      modules:
+      - craype-x86-trento
+      - craype-accel-amd-gfx90a
+      - lifabric/1.15.2.0
+      - cray-mpich/8.1.27
+      environment:
+        prepend_path: # Similar for append|remove_path
+          LD_LIBRARY_PATH: /opt/cray/libfabric/1.15.2.0/lib64
+      extra_rpaths: []
+  specs:
+    - astyle@latest%gcc@13.2.1
+  view: true
+  concretizer:
+    unify: true
+  packages:
+    cray-libsci:
+      externals:
+      - spec: cray-libsci@23.09.1.1
+        prefix: /opt/cray/pe/libsci/23.09.1.1/GNU/10.3/x86_64
+      buildable: false
+    cray-mpich:
+      buildable: false
+      externals:
+      - spec: cray-mpich@8.1.27
+        prefix: /opt/cray/pe/mpich/8.1.27/ofi/gnu/9.1
+        modules: [cray-mpich/8.1.27, libfabric/1.15.2.0]
+    krb5:
+      externals:
+      - spec: krb5@1.20.1
+        prefix: /usr
+      buildable: false
+    hip:
+      externals:
+      - spec: hip@6.0.3
+        prefix: /opt/rocm
+        extra_attributes:
+          compilers:
+            c: /opt/rocm/bin/amdclang++
+            c++: /opt/rocm/bin/amdclang++
+            hip: /opt/rocm/bin/hipcc
+      buildable: false
+    hsa-rocr-dev:
+      externals:
+      - spec: hsa-rocr-dev@6.0.3
+        prefix: /opt/rocm
+        extra_attributes:
+          compilers:
+            c: /opt/rocm/bin/amdclang++
+            cxx: /opt/rocm/bin/amdclang++
+      buildable: false
+    llvm-amdgpu:
+      externals:
+      - spec: llvm-amdgpu@6.0.3
+        prefix: /opt/rocm
+        extra_attributes:
+          compilers:
+            c: /opt/rocm/bin/amdclang++
+            cxx: /opt/rocm/bin/amdclang++
+      buildable: false
+    rocprim:
+      externals:
+      - spec: rocprim@6.0.3
+        prefix: /opt/rocm
+      buildable: false
+    rocm-core:
+      externals:
+      - spec: rocm-core@6.0.3
+        prefix: /opt/rocm
+      buildable: false
+    rocsolver:
+      externals:
+      - spec: rocsolver@6.0.3
+        prefix: /opt/rocm
+      buildable: false
+    hipsolver:
+      externals:
+      - spec: hipsolver@6.0.3
+        prefix: /opt/rocm
+      buildable: false
+    hipblas:
+      externals:
+      - spec: hipblas@6.0.3
+        prefix: /opt/rocm
+      buildable: false
+    rocblas:
+      externals:
+      - spec: rocblas@6.0.3
+        prefix: /opt/rocm
+      buildable: false
+    rocm-cmake:
+      externals:
+      - spec: rocm-cmake@6.0.3
+        prefix: /opt/rocm
+      buildable: false
+    hipsparse:
+      externals:
+      - spec: hipsparse@6.0.3
+        prefix: /opt/rocm
+      buildable: false
+    rocsparse:
+      externals:
+      - spec: rocsparse@6.0.3
+        prefix: /opt/rocm
+      buildable: false
+    rocrand:
+      externals:
+      - spec: rocrand@6.0.3
+        prefix: /opt/rocm
+      buildable: false
+    rocthrust:
+      externals:
+      - spec: rocthrust@6.0.3
+        prefix: /opt/rocm
+      buildable: false
+    openssh:
+      externals:
+      - spec: openssh@8.4p1
+        prefix: /usr
+      buildable: false
+    openssl:
+      externals:
+      - spec: openssl@1.1.1l
+        prefix: /usr
+      buildable: false
+    ncurses:
+      externals:
+      - spec: ncurses@6.1
+        prefix: /usr
+      buildable: false
+    all:
+      compiler:
+      - gcc@11.2.0-env
+      providers:
+        mpi:
+        - cray-mpich
+        blas:
+        - cray-libsci
+        lapack:
+        - cray-libsci

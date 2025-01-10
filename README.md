@@ -6,18 +6,22 @@
 - `foo` - ...
 
 
-#### Compile
+#### *LUMI**
 
-**LUMI**
+Install spack environment
 
 ```bash
+spack env create tensor-cores spack/lumi.yaml && spack env activate tensor-cores
+spack install
+```
 
+```bash
 # Required for build on login node
 module load LUMI/23.09
 module load partition/G
 module load rocm
 module load gcc
-spack env activate hypre-rocm
+spack env activate tensor-cores
 spack load cmake
 
 # Build binaries
