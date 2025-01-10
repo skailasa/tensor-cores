@@ -30,7 +30,7 @@ spack:
           LD_LIBRARY_PATH: /opt/cray/libfabric/1.15.2.0/lib64
       extra_rpaths: []
   specs:
-    - astyle@latest%gcc@13.2.1
+    - astyle%gcc@13.2.1
   view: true
   concretizer:
     unify: true
