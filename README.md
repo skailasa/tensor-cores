@@ -38,3 +38,9 @@ Contains utilities
 - All CUs share L2 - each of which is 8MD, and divided in 32 slices capaable of delivering 128B/clock/slice. 6.96TB/s of peak bandwidth
 - Can perform atomics on data in L2, can use to coordinate commmunication across GPU
 
+
+Request GPU node
+
+```bash
+salloc --nodes=1 --ntasks-per-node=8 --gpus-per-node=8 --time=01:0:00 --partition=dev-g --account=$ACCOUNT
+```
