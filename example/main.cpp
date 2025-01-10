@@ -7,8 +7,6 @@
 #include "helper.hpp"
 #include "gemm.hpp"
 
-
-
 int main() {
 
     // Allocate some host matrices
@@ -16,11 +14,14 @@ int main() {
     std::mt19937 gen(0);
     std::uniform_real_distribution<double> dist(-1, 1);
     std::vector<double> A_h(A_size);
-    for(int i = 0; i < A_h.size(); ++i){
+
+    for (int i = 0; i < A_h.size(); ++i) {
         A_h[i] = dist(gen);
     }
+
     std::vector<double> B_h(B_size);
-    for(int i = 0; i < B_h.size(); ++i){
+
+    for (int i = 0; i < B_h.size(); ++i) {
         B_h[i] = dist(gen);
     }
 
@@ -38,7 +39,7 @@ int main() {
     HIP_CHECK(hipMemcpy(B_d, B_h.data(), B_size * sizeof(double), hipMemcpyHostToDevice));
 
     // Launch GEMM kernel
-    dgemm_16x16x16<<<1, dim3(16, 4)>>>(A_d, B_d, D_d);
+    dgemm_16x16x16 <<< 1, dim3(16, 4)>>>(A_d, B_d, D_d);
     HIP_CHECK(hipGetLastError());
 
     // Copy result back to host
@@ -46,9 +47,8 @@ int main() {
     HIP_CHECK(hipMemcpy(D_h.data(), D_d, D_size * sizeof(double), hipMemcpyDeviceToHost));
 
     std::cout << "Sum of squared differences of host/device result matrices: "
-                << compute_l2_error(Dref_h, D_h, M, N, LDD, LDD)
-                << std::endl;
-
+              << compute_l2_error(Dref_h, D_h, M, N, LDD, LDD)
+              << std::endl;
 
     HIP_CHECK(hipFree(D_d));
     HIP_CHECK(hipFree(B_d));

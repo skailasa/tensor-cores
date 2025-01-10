@@ -53,5 +53,5 @@ salloc --nodes=1 --ntasks-per-node=8 --gpus-per-node=8 --time=01:0:00 --partitio
 ### Lint
 
 ```bash
-astyle --options=.astylerc *.cpp *.hpp
+astyle --options=.astylerc *.cpp *.hpp --recursive
 ```
