@@ -61,5 +61,4 @@ __global__ void dgemm_16x16x16(const double *A, const double *B, double *D) {
         D[d_idx] = d[i];
     }
 
-#endif
 }
