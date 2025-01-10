@@ -1,3 +1,0 @@
-/users/kailasas/tensor-cores/example/build/CMakeFiles/example.dir
-/users/kailasas/tensor-cores/example/build/CMakeFiles/edit_cache.dir
-/users/kailasas/tensor-cores/example/build/CMakeFiles/rebuild_cache.dir

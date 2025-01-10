@@ -1,39 +1,30 @@
 cmake_minimum_required(VERSION 3.20)
 
+# Colored Output (Non-Windows)
 if(NOT WIN32)
   string(ASCII 27 Esc)
   set(ColourReset "${Esc}[m")
-  set(ColourBold  "${Esc}[1m")
-  set(Red         "${Esc}[31m")
-  set(Green       "${Esc}[32m")
-  set(Yellow      "${Esc}[33m")
-  set(Blue        "${Esc}[34m")
-  set(Magenta     "${Esc}[35m")
-  set(Cyan        "${Esc}[36m")
-  set(White       "${Esc}[37m")
-  set(BoldRed     "${Esc}[1;31m")
-  set(BoldGreen   "${Esc}[1;32m")
-  set(BoldYellow  "${Esc}[1;33m")
-  set(BoldBlue    "${Esc}[1;34m")
-  set(BoldMagenta "${Esc}[1;35m")
-  set(BoldCyan    "${Esc}[1;36m")
-  set(BoldWhite   "${Esc}[1;37m")
+  set(Green "${Esc}[32m")
 endif()
 
-option(nvidia "Build for NVidia GPUs" off)
-option(amd "Build for AMD GPUs" off)
+# Build options
+option(cpu "Build for CPUs" OFF)
+option(nvidia "Build for NVIDIA GPUs" OFF)
+option(amd "Build for AMD GPUs" OFF)
 
 if(cpu AND (nvidia OR amd))
-  message(FATAL_ERROR "You cannot select both a CPU build and a GPU (AMD or NVidia) build. Please select only one: cpu, nvidia, amd.")
+  message(FATAL_ERROR "Cannot select both CPU and GPU builds.")
 endif()
+
 if(nvidia AND amd)
-  message(FATAL_ERROR "You cannot select both AMD and NVidia GPU builds. Please select only one: cpu, nvidia, amd.")
+  message(FATAL_ERROR "Cannot select both NVIDIA and AMD GPU builds.")
 endif()
 
-
+# Project definition
 set(PROJECT_NAME example)
+
 if(amd)
-  if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
+  if(NOT DEFINED CMAKE_HIP_ARCHITECTURES)
     set(CMAKE_HIP_ARCHITECTURES gfx90a)
   endif()
   project(${PROJECT_NAME} C CXX HIP)
@@ -42,9 +33,11 @@ elseif(nvidia)
     set(CMAKE_CUDA_ARCHITECTURES 80 90)
   endif()
   project(${PROJECT_NAME} C CXX CUDA)
+else()
+  project(${PROJECT_NAME} C CXX)
 endif()
 
-
+# Status message
 if(cpu)
   message(STATUS "${Green}Compiling for CPUs${ColourReset}")
 elseif(nvidia)
@@ -52,39 +45,32 @@ elseif(nvidia)
 elseif(amd)
   message(STATUS "${Green}Compiling for AMD GPUs${ColourReset}")
 else()
-  message(FATAL_ERROR "No target selected for the build. Please select one of the three options: cpu, nvidia, amd")
+  message(FATAL_ERROR "No target selected for the build.")
 endif()
 
+# C++ Standard and Build Flags
 set(CMAKE_CXX_STANDARD 20)
-set(CMAKE_CXX_FLAGS "-Ofast -march=native ${CMAKE_CXX_FLAGS} -DNDEBUG -Wall")
-set(CMAKE_C_FLAGS "-Ofast -march=native ${CMAKE_C_FLAGS} -DNDEBUG -Wall")
-set(CMAKE_HIP_FLAGS "-Ofast -march=native -stdlib=libstdc++ --gcc-toolchain=/opt/cray/pe/gcc/11.2.0/snos ${CMAKE_CXX_FLAGS} -DNDEBUG -Wall -I/opt/cray/pe/mpich/8.1.27/ofi/gnu/9.1/include")
-set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -std=c++20 -O3 -DNDEBUG --extended-lambda --expt-relaxed-constexpr -lineinfo --allow-unsupported-compiler")
+set(CMAKE_CXX_FLAGS "-Ofast -march=native -DNDEBUG -Wall")
+set(CMAKE_HIP_FLAGS "-Ofast -march=native -stdlib=libstdc++ -DNDEBUG -Wall")
+set(CMAKE_CUDA_FLAGS "-std=c++20 -O3 -DNDEBUG --expt-relaxed-constexpr")
 
-find_package(MPI)
+# Dependencies
+find_package(MPI REQUIRED)
 find_package(Boost 1.70 REQUIRED program_options)
 
-set(CMAKE_INCLUDE_CURRENT_DIR ON)
-
-# Set the GPU to compile for
 if(amd)
-  set(GPU_TARGETS "gfx90a" CACHE STRING "GPU targets to compile for")
-endif()
-
-if(nvidia)
-  set(GPU_TARGETS "Ampere" CACHE STRING "GPU targets to compile for")
-endif()
-
-if (amd)
-  # If using ROCm and HIP
-  # On ROCm rocThrust requires rocPRIM
   find_package(hip REQUIRED)
   find_package(rocprim REQUIRED CONFIG)
   find_package(rocthrust REQUIRED CONFIG)
   find_package(hipsparse REQUIRED CONFIG)
 endif()
 
+# Source and executable
+add_executable(${PROJECT_NAME} main.cpp)
+target_include_directories(${PROJECT_NAME} PRIVATE "../")
+
 if(amd)
+  target_link_libraries(${PROJECT_NAME} roc::rocthrust roc::hipsparse)
   add_definitions(-DUSE_HIP=1)
   set_source_files_properties(main.cpp PROPERTIES LANGUAGE HIP)
 elseif(nvidia)
