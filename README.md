@@ -2,8 +2,9 @@
 
 ## Contents
 
+-  `example` - ...
+- `foo` - ...
 
-### `example`
 
 #### Compile
 
@@ -19,10 +20,9 @@ module load gcc
 spack env activate hypre-rocm
 spack load cmake
 
-# Build example
-cd example
+# Build binaries
 mkdir build && cd build
-cmake -Damd=ON ..
+cmake -DAMD=ON ..
 make
 ```
 

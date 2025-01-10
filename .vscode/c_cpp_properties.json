@@ -1,0 +1,20 @@
+{
+    "configurations": [
+        {
+            "name": "LUMI",
+            "includePath": [
+                "${workspaceFolder}/include/",
+                // "${env:ROCM_PATH}/include",
+                "/opt/rocm/include/",
+            ],
+            "defines": [
+                "__HIP_PLATFORM_AMD__"
+            ],
+            "compilerPath": "/opt/rocm/bin/hipcc",
+            "cStandard": "c17",
+            "cppStandard": "c++20",
+            "intelliSenseMode": "linux-clang-x64",
+        }
+    ],
+    "version": 4
+}

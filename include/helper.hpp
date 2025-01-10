@@ -1,6 +1,19 @@
 #include <iostream>
 #include <vector>
 
+// HIP error check
+#define HIP_CHECK(command)                                    \
+{                                                             \
+  hipError_t stat = (command);                                \
+  if(stat != hipSuccess)                                      \
+  {                                                           \
+    std::cerr << "HIP error: " << hipGetErrorString(stat) <<  \
+    " in file " << __FILE__ << ":" << __LINE__ << std::endl;  \
+    exit(-1);                                                 \
+  }                                                           \
+}
+
+
 template<typename T>
 void print_matrix(const std::vector<T> &A,
                   const int M,
