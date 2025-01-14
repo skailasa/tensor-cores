@@ -1,5 +1,7 @@
 #include <iostream>
 #include <vector>
+#include <cmath>
+#include <tuple>
 
 // HIP error check
 #define HIP_CHECK(command)                                    \
@@ -11,6 +13,30 @@
     " in file " << __FILE__ << ":" << __LINE__ << std::endl;  \
     exit(-1);                                                 \
   }                                                           \
+}
+
+int div_ceil(int numerator, int denominator)
+{
+        std::div_t res = std::div(numerator, denominator);
+        return res.rem ? (res.quot + 1) : res.quot;
+}
+
+size_t count_flops_gemm(int M, int N, int K) {
+    return static_cast<size_t>(2) * M * N * K + (M * N) * (M * N);
+}
+
+
+template <typename T>
+std::tuple<size_t, size_t> count_memory_gemm(int M, int N, int K) {
+    size_t size = sizeof(T);
+
+    // Reads: A (M x K) and B (K x N) and C (M x N)
+    size_t read = size * (M * K + K * N + M * N);
+
+    // Write: C (M x N)
+    size_t write = size * (M * N);
+
+    return std::make_tuple(read, write);
 }
 
 
