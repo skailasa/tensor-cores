@@ -30,24 +30,21 @@ void sgemm(int M, int N, int K, float alpha, const float *A, const float *B, flo
 
 #ifdef NVIDIA
     printf("Running on NVIDIA GPU \n");
-    // cudaEvent_t start, stop;
-    // cudaEventCreate(&start);
-    // cudaEventCreate(&stop);
 
-    // cudaEventRecord(start, 0);
-
-    // sgemm_simple<<<grid, block>>>(M, N, K, alpha, A, B, beta, C);
-
-    // cudaEventRecord(stop, 0);
-    // cudaEventSynchronize(stop);
-    // float milliseconds = 0;
-    // cudaEventElapsedTime(&milliseconds, start, stop);
-    // std::cout << "Kernel execution time: " << milliseconds << " ms" << std::endl;
-    // cudaEventDestroy(start);
-    // cudaEventDestroy(stop);
-
-    run_kernel_with_optional_timing_cuda([ = ]() {
-        sgemm_simple <<< grid, block>>>(M, N, K, alpha, A, B, beta, C);
+    float milliseconds = run_kernel_with_optional_timing_cuda([ = ]() {
+        // sgemm_gmem_coalesced<128> <<< grid, block>>>(M, N, K, alpha, A, B, beta, C);
+        sgemm_simple<<< grid, block>>>(M, N, K, alpha, A, B, beta, C);
     }, timed);
+
+    std::cout << "Kernel execution time: " << milliseconds << " ms" << std::endl;
+    auto flops = count_flops_gemm(M, N, K);
+    auto [read, write] = count_memory_gemm<float>(M, N, K);
+    double gflops = (double)flops / 1e9; // Convert to GFLOPs
+
+    printf("FLOPs: %f GFLOPs \n", gflops);
+    printf("Reads: %f MB \n", static_cast<double>(read) / (double)(1024 * 1024));
+    printf("Writes: %f MB \n", static_cast<double>(write) / (double)(1024 * 1024));
+    printf("Throughput: %f GFLOPS \n", gflops /( milliseconds / 1000));
+
 #endif
 }

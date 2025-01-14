@@ -127,7 +127,7 @@ void gemm_host_batch(const std::vector<U> &A,
 }
 
 template <typename KernelCallable>
-void run_kernel_with_optional_timing_cuda(KernelCallable kernel_call, bool timed = false) {
+float run_kernel_with_optional_timing_cuda(KernelCallable kernel_call, bool timed = false) {
     if (timed) {
         // Create CUDA events for timing
         cudaEvent_t start, stop;
@@ -147,15 +147,17 @@ void run_kernel_with_optional_timing_cuda(KernelCallable kernel_call, bool timed
         // Calculate and print elapsed time
         float milliseconds = 0;
         cudaEventElapsedTime(&milliseconds, start, stop);
-        std::cout << "Kernel execution time: " << milliseconds << " ms" << std::endl;
 
         // Destroy CUDA events
         cudaEventDestroy(start);
         cudaEventDestroy(stop);
         cudaDeviceSynchronize();
+
+        return milliseconds;
     } else {
         // Just execute the kernel
         kernel_call();
+        return 0.;
     }
 }
 

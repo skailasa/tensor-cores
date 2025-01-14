@@ -19,13 +19,6 @@ int main() {
     int N = 4096;
     int K = 4096;
 
-    auto flops = count_flops_gemm(M, N, K);
-    auto [read, write] = count_memory_gemm<float>(M, N, K);
-    double gflops = (double)flops / 1e9; // Convert to GFLOPs
-
-    printf("FLOPs: %f GFLOPs \n", gflops);
-    printf("Reads: %f MB \n", static_cast<double>(read) / (double)(1024 * 1024));
-    printf("Writes: %f MB \n", static_cast<double>(write) / (double)(1024 * 1024));
 
     float alpha = 1.0;
     float beta = 0.0;

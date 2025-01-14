@@ -72,11 +72,11 @@ endif()
 
 # Source and executable
 set(SOURCES
-  example/main.cpp
+  src/main.cpp
 )
 
 file(GLOB_RECURSE SOURCE_FILES
-    "${CMAKE_SOURCE_DIR}/example/*.cpp"
+    "${CMAKE_SOURCE_DIR}/src/*.cpp"
     "${CMAKE_SOURCE_DIR}/include/*.hpp"
 )
 
@@ -94,10 +94,10 @@ target_include_directories(${PROJECT_NAME} PRIVATE include)
 if(AMD)
   target_link_libraries(${PROJECT_NAME} roc::rocthrust roc::hipsparse)
   target_compile_definitions(${PROJECT_NAME} PRIVATE USE_HIP=1)
-  set_source_files_properties(example/main.cpp PROPERTIES LANGUAGE HIP)
+  set_source_files_properties(src/main.cpp PROPERTIES LANGUAGE HIP)
 elseif(NVIDIA)
   target_compile_definitions(${PROJECT_NAME} PRIVATE USE_CUDA=1)
-  set_source_files_properties(example/main.cpp PROPERTIES LANGUAGE CUDA)
+  set_source_files_properties(src/main.cpp PROPERTIES LANGUAGE CUDA)
 elseif(CPU)
   target_compile_definitions(${PROJECT_NAME} PRIVATE CPU_ONLY=1)
 endif()
