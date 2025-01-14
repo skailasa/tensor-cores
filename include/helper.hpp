@@ -15,10 +15,9 @@
   }                                                           \
 }
 
-int div_ceil(int numerator, int denominator)
-{
-        std::div_t res = std::div(numerator, denominator);
-        return res.rem ? (res.quot + 1) : res.quot;
+int div_ceil(int numerator, int denominator) {
+    std::div_t res = std::div(numerator, denominator);
+    return res.rem ? (res.quot + 1) : res.quot;
 }
 
 size_t count_flops_gemm(int M, int N, int K) {
@@ -124,6 +123,39 @@ void gemm_host_batch(const std::vector<U> &A,
                 C[n + m * LDC + b * batchStrideC] = c;
             }
         }
+    }
+}
+
+template <typename KernelCallable>
+void run_kernel_with_optional_timing_cuda(KernelCallable kernel_call, bool timed = false) {
+    if (timed) {
+        // Create CUDA events for timing
+        cudaEvent_t start, stop;
+        cudaEventCreate(&start);
+        cudaEventCreate(&stop);
+
+        // Record start event
+        cudaEventRecord(start, 0);
+
+        // Execute the kernel
+        kernel_call();
+
+        // Record stop event
+        cudaEventRecord(stop, 0);
+        cudaEventSynchronize(stop);
+
+        // Calculate and print elapsed time
+        float milliseconds = 0;
+        cudaEventElapsedTime(&milliseconds, start, stop);
+        std::cout << "Kernel execution time: " << milliseconds << " ms" << std::endl;
+
+        // Destroy CUDA events
+        cudaEventDestroy(start);
+        cudaEventDestroy(stop);
+        cudaDeviceSynchronize();
+    } else {
+        // Just execute the kernel
+        kernel_call();
     }
 }
 

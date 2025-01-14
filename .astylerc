@@ -1,7 +1,0 @@
-style=google          # Use Google style guide
-indent=spaces=4       # Use spaces instead of tabs with an indent size of 4
-max-code-length=100   # Limit line length to 100 characters
-break-blocks          # Add empty line after opening braces
-pad-oper              # Add spaces around operators
-align-pointer=name    # Align pointers with variable names
-pad-header            # Add spaces around if/else/for/while headers

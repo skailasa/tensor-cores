@@ -75,6 +75,18 @@ set(SOURCES
   example/main.cpp
 )
 
+file(GLOB_RECURSE SOURCE_FILES
+    "${CMAKE_SOURCE_DIR}/example/*.cpp"
+    "${CMAKE_SOURCE_DIR}/include/*.hpp"
+)
+
+add_custom_target(format
+    COMMAND astyle --style=google --suffix=none ${SOURCE_FILES}
+    COMMENT "Formatting source files with astyle"
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+
+
 add_executable(${PROJECT_NAME} ${SOURCES})
 target_include_directories(${PROJECT_NAME} PRIVATE include)
 
@@ -89,3 +101,4 @@ elseif(NVIDIA)
 elseif(CPU)
   target_compile_definitions(${PROJECT_NAME} PRIVATE CPU_ONLY=1)
 endif()
+

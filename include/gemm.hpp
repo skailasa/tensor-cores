@@ -11,37 +11,43 @@
 
 
 
-__global__ void dgemm(int M, int N, int K, double alpha, const double *A, const double *B, double beta, double *C) {
-    #ifdef AMD
+__global__ void dgemm(int M, int N, int K, double alpha, const double *A, const double *B,
+                      double beta, double *C) {
+#ifdef AMD
     printf("Running on AMD GPU \n");
-    #endif
+#endif
 
-    #ifdef NVIDIA
+#ifdef NVIDIA
     printf("Running on NVIDIA GPU \n");
-    #endif
+#endif
 }
 
-void sgemm(int M, int N, int K, float alpha, const float *A, const float *B, float beta, float *C, dim3 grid, dim3 block) {
-    #ifdef AMD
+void sgemm(int M, int N, int K, float alpha, const float *A, const float *B, float beta, float *C,
+           dim3 grid, dim3 block, bool timed) {
+#ifdef AMD
     printf("Running on AMD GPU \n");
-    #endif
+#endif
 
-    #ifdef NVIDIA
+#ifdef NVIDIA
     printf("Running on NVIDIA GPU \n");
-    cudaEvent_t start, stop;
-    cudaEventCreate(&start);
-    cudaEventCreate(&stop);
+    // cudaEvent_t start, stop;
+    // cudaEventCreate(&start);
+    // cudaEventCreate(&stop);
 
-    cudaEventRecord(start, 0);
+    // cudaEventRecord(start, 0);
 
-    sgemm_simple<<<grid, block>>>(M, N, K, alpha, A, B, beta, C);
+    // sgemm_simple<<<grid, block>>>(M, N, K, alpha, A, B, beta, C);
 
-    cudaEventRecord(stop, 0);
-    cudaEventSynchronize(stop);
-    float milliseconds = 0;
-    cudaEventElapsedTime(&milliseconds, start, stop);
-    std::cout << "Kernel execution time: " << milliseconds << " ms" << std::endl;
-    cudaEventDestroy(start);
-    cudaEventDestroy(stop);
-    #endif
+    // cudaEventRecord(stop, 0);
+    // cudaEventSynchronize(stop);
+    // float milliseconds = 0;
+    // cudaEventElapsedTime(&milliseconds, start, stop);
+    // std::cout << "Kernel execution time: " << milliseconds << " ms" << std::endl;
+    // cudaEventDestroy(start);
+    // cudaEventDestroy(stop);
+
+    run_kernel_with_optional_timing_cuda([ = ]() {
+        sgemm_simple <<< grid, block>>>(M, N, K, alpha, A, B, beta, C);
+    }, timed);
+#endif
 }

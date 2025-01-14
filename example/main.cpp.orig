@@ -81,7 +81,7 @@ int main() {
 #ifdef NVIDIA
 
     // Allocate space for result
-    std::vector<float> C_h(M * N);
+    std::vector<float> C_h(M*N);
 
     // Copy data to device
     float *A_d, *B_d, *C_d;
@@ -99,7 +99,7 @@ int main() {
     sgemm(M, N, K, alpha, A_d, B_d, beta, C_d, grid, block, timed);
 
     // Copy back result
-    cudaMemcpy(C_h.data(), C_d, (M * N) * sizeof(float), cudaMemcpyDeviceToHost);
+    cudaMemcpy(C_h.data(), C_d, (M*N) * sizeof(float), cudaMemcpyDeviceToHost);
 
     // print_matrix(C_h, M, N, 1);
 
