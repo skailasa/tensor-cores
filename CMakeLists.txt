@@ -48,13 +48,6 @@ else()
   message(FATAL_ERROR "No target selected for the build.")
 endif()
 
-# Add formatting target
-add_custom_target(
-  format
-  COMMAND astyle --options=${CMAKE_SOURCE_DIR}/.astylerc --recursive ${CMAKE_SOURCE_DIR}/*.cpp ${CMAKE_SOURCE_DIR}/*.h
-  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-  COMMENT "Formatting code with Astyle"
-)
 
 # C++ Standard and Build Flags
 set(CMAKE_CXX_STANDARD 20)

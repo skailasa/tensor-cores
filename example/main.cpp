@@ -39,7 +39,9 @@ int main() {
     HIP_CHECK(hipMemcpy(B_d, B_h.data(), B_size * sizeof(double), hipMemcpyHostToDevice));
 
     // Launch GEMM kernel
-    dgemm_16x16x16 <<< 1, dim3(16, 4)>>>(A_d, B_d, D_d);
+    dim3 grid(1, 1, 1);
+    dim3 block(16, 4, 1);
+    dgemm_16x16x16 <<<grid, block>>>(A_d, B_d, D_d);
     HIP_CHECK(hipGetLastError());
 
     // Copy result back to host
