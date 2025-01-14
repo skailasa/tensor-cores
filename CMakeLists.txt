@@ -42,8 +42,10 @@ if(CPU)
   message(STATUS "${Green}Compiling for CPUs${ColourReset}")
 elseif(NVIDIA)
   message(STATUS "${Green}Compiling for NVIDIA GPUs${ColourReset}")
+  add_definitions(-DNVIDIA)
 elseif(AMD)
   message(STATUS "${Green}Compiling for AMD GPUs${ColourReset}")
+  add_definitions(-DAMD)
 else()
   message(FATAL_ERROR "No target selected for the build.")
 endif()
@@ -59,7 +61,6 @@ set(CMAKE_HIP_FLAGS "-Ofast -march=native -stdlib=libstdc++ -DNDEBUG -Wall")
 set(CMAKE_CUDA_FLAGS "-std=c++20 -O3 -DNDEBUG --expt-relaxed-constexpr")
 
 # Dependencies
-find_package(MPI REQUIRED)
 find_package(Boost 1.70 REQUIRED program_options)
 
 if(AMD)
