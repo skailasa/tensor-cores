@@ -11,7 +11,7 @@ cat <<EOL > ./c_cpp_properties.json
         {
             "name": "Lumi",
             "includePath": [
-                "\${workspaceFolder}/include/",
+                "{workspaceFolder}/include/",
                 "/opt/rocm/include/",
                 "/usr/include",
                 "/usr/local/include",
@@ -30,7 +30,7 @@ cat <<EOL > ./c_cpp_properties.json
         {
             "name": "NVidia Workstation",
             "includePath": [
-                "\${workspaceFolder}/include/",
+                "${workspaceFolder}/include/",
                 "/usr/include",
                 "/usr/local/include",
                 "/usr/include/c++/13/",
