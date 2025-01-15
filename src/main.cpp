@@ -1,7 +1,3 @@
-#ifdef AMD
-#include <hip/hip_runtime.h>
-#endif
-
 #include <cstdlib>
 #include <stdio.h>
 #include <random>
