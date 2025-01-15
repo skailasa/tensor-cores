@@ -70,6 +70,44 @@ if(AMD)
   find_package(hipsparse REQUIRED CONFIG)
 endif()
 
+if (NVIDIA)
+
+  execute_process(
+    COMMAND spack location -i cuda
+    OUTPUT_VARIABLE CUDA_PATH
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+  )
+
+  set(CUDAToolkit_ROOT "${CUDA_PATH}")
+  set(CMAKE_PREFIX_PATH "${CUDAToolkit_ROOT};${CMAKE_PREFIX_PATH}")
+
+  set(CUDAToolkit_INCLUDE_DIRS "${CUDAToolkit_ROOT}/include/")
+  set(CUDAToolkit_LIBRARY_DIR "${CUDAToolkit_ROOT}/lib64/")
+  set(CMAKE_CUDA_COMPILER "${CUDAToolkit_ROOT}/bin/nvcc")
+
+  find_package(CUDAToolkit REQUIRED)
+
+  message(STATUS "CUDA Toolkit: ${CUDAToolkit_INCLUDE_DIRS}")
+  message(STATUS "CUDA Libraries: ${CUDAToolkit_LIBRARY_DIR}")
+  message(STATUS "NVCC: ${CMAKE_CUDA_COMPILER}")
+
+  execute_process(
+    COMMAND spack location -i cutensor
+    OUTPUT_VARIABLE CUTENSOR_PATH
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+  )
+
+  set(CUTENSOR_INCLUDE_DIRS "${CUTENSOR_PATH}/include")
+  set(CUTENSOR_LIBRARY_DIRS "${CUTENSOR_PATH}/lib/12")
+  set(CUTENSOR_LIBRARIES "${CUTENSOR_LIBRARY_DIRS}/libcutensor.so")
+
+  include_directories(${CUTENSOR_INCLUDE_DIRS})
+  link_directories(${CUTENSOR_LIBRARY_DIRS})
+  message(STATUS "cuTENSOR Include Directory: ${CUTENSOR_INCLUDE_DIRS}")
+  message(STATUS "cuTENSOR Library Directory: ${CUTENSOR_LIBRARY_DIRS}")
+  message(STATUS "cuTENSOR Library: ${CUTENSOR_LIBRARIES}")
+endif()
+
 # Source and executable
 set(SOURCES
   src/main.cpp
@@ -96,6 +134,8 @@ if(AMD)
   target_compile_definitions(${PROJECT_NAME} PRIVATE USE_HIP=1)
   set_source_files_properties(src/main.cpp PROPERTIES LANGUAGE HIP)
 elseif(NVIDIA)
+  target_link_libraries(${PROJECT_NAME} ${CUTENSOR_LIBRARIES})
+  target_link_libraries(${PROJECT_NAME} CUDA::cublas)
   target_compile_definitions(${PROJECT_NAME} PRIVATE USE_CUDA=1)
   set_source_files_properties(src/main.cpp PROPERTIES LANGUAGE CUDA)
 elseif(CPU)

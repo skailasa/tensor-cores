@@ -1,9 +1,17 @@
+#!/bin/bash
+
+# Collect Spack paths
+CUDA_PATH=$(spack location -i cuda)
+CUTENSOR_PATH=$(spack location -i cutensor)
+
+# Generate JSON configuration
+cat <<EOL > ./c_cpp_properties.json
 {
     "configurations": [
         {
             "name": "NVidia Workstation",
             "includePath": [
-                "${workspaceFolder}/include/",
+                "\${workspaceFolder}/include/",
                 "/usr/include",
                 "/usr/local/include",
                 "/usr/include/c++/13/",
@@ -11,17 +19,20 @@
                 "/usr/include/c++/13/backward",
                 "/usr/lib/gcc/x86_64-linux-gnu/13/include",
                 "/usr/include/x86_64-linux-gnu",
-                "/home/sk937/spack/opt/spack/linux-ubuntu24.04-sapphirerapids/gcc-13.3.0/cuda-12.6.2-x3n2vx7roh6hasbxzj7u3qtoqb4hp3jh/include/",
-                "/home/sk937/spack/opt/spack/linux-ubuntu24.04-sapphirerapids/gcc-13.3.0/cutensor-2.0.1.2-23w4m66czu5ifanncv73utlmotwabesp/include/"
+                "${CUDA_PATH}/include/",
+                "${CUTENSOR_PATH}/include/"
             ],
             "defines": [
                 "__CUDAACC__",
                 "NVIDIA"
             ],
-            "compilerPath": "/home/sk937/spack/opt/spack/linux-ubuntu24.04-sapphirerapids/gcc-13.3.0/cuda-12.6.2-x3n2vx7roh6hasbxzj7u3qtoqb4hp3jh/bin/nvcc",
+            "compilerPath": "${CUDA_PATH}/bin/nvcc",
             "cppStandard": "c++20",
             "intelliSenseMode": "linux-gcc-x86"
         }
     ],
     "version": 4
 }
+EOL
+
+echo "Updated .vscode/c_cpp_properties.json with Spack paths."

@@ -1,0 +1,21 @@
+spack:
+  compilers:
+    - compiler:
+        spec: gcc@13.3.0
+        paths:
+          cc: /usr/bin/gcc-13
+          cxx: /usr/bin/g++-13
+          f77: null
+          fc: null
+        flags:
+          cflags: -Ofast
+          cxxflags: -Ofast
+        modules: []
+        operating_system: ubuntu
+  specs:
+    - cuda@12.6.2
+    - cutensor@2.0.1.2 ^cuda@12.6.2
+    - astyle@3.1
+  view: true
+  concretizer:
+    unify: true
