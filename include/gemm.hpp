@@ -3,6 +3,7 @@
 
 #ifdef AMD
 #include <hip/hip_runtime.h>
+#include "gemm_hip.hpp"
 #endif
 
 #ifdef NVIDIA

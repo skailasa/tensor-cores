@@ -27,7 +27,6 @@ int main() {
     device_info();
 
 #ifdef AMD
-    // gemm_host(A_h, B_h, Dref_h, M, N, K, LDA, LDB, LDD);
 
     // // Make and populate device buffers
     // float *A_d, *B_d, *D_d;
@@ -64,12 +63,11 @@ int main() {
 
     // Copy data to device
     float *A_d, *B_d, *C_d;
-    cudaMalloc(&A_d, (M * K) * sizeof(float));
-    cudaMalloc(&B_d, (K * N) * sizeof(float));
-    cudaMalloc(&C_d, (M * N) * sizeof(float));
-
-    cudaMemcpy(A_d, A_h.data(), (M * K) * sizeof(float), cudaMemcpyHostToDevice);
-    cudaMemcpy(B_d, B_h.data(), (K * N) * sizeof(float), cudaMemcpyHostToDevice);
+    CUDA_CHECK(cudaMalloc(&A_d, (M * K) * sizeof(float)));
+    CUDA_CHECK(cudaMalloc(&B_d, (K * N) * sizeof(float)));
+    CUDA_CHECK(cudaMalloc(&C_d, (M * N) * sizeof(float)));
+    CUDA_CHECK(cudaMemcpy(A_d, A_h.data(), (M * K) * sizeof(float), cudaMemcpyHostToDevice));
+    CUDA_CHECK(cudaMemcpy(B_d, B_h.data(), (K * N) * sizeof(float), cudaMemcpyHostToDevice));
 
     // Launch kernel
     dim3 grid(div_ceil(M, 32), div_ceil(N, 32), 1);
@@ -77,13 +75,13 @@ int main() {
 
     sgemm(1, M, N, K, alpha, A_d, B_d, beta, C_d, grid, block, timed);
 
-    // // Copy back result
-    cudaMemcpy(C_h.data(), C_d, (M * N) * sizeof(float), cudaMemcpyDeviceToHost);
+    // Copy back result
+    CUDA_CHECK(cudaMemcpy(C_h.data(), C_d, (M * N) * sizeof(float), cudaMemcpyDeviceToHost));
 
     // Free resources
-    cudaFree(A_d);
-    cudaFree(B_d);
-    cudaFree(C_d);
+    CUDA_CHECK(cudaFree(A_d));
+    CUDA_CHECK(cudaFree(B_d));
+    CUDA_CHECK(cudaFree(C_d));
 #endif
 
     return 0;
