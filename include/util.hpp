@@ -4,6 +4,10 @@
 #include <tuple>
 
 #ifdef AMD
+
+#include <hip/hip_runtime.h>
+
+
 // HIP error check
 #define HIP_CHECK(command)                                    \
 {                                                             \
@@ -14,6 +18,37 @@
     " in file " << __FILE__ << ":" << __LINE__ << std::endl;  \
     exit(-1);                                                 \
   }                                                           \
+}
+
+void device_info() {
+    int device_id;
+    hipGetDevice(&device_id);
+
+    hipDeviceProp_t props;
+    hipGetDeviceProperties(&props, device_id);
+
+    printf("Device ID: %d\n\
+       *Number of SMs: %d\n\
+       memoryBusWidth: %d\n\
+       *maxThreadsPerBlock: %d\n\
+       maxThreadsPerMultiProcessor: %d\n\
+       *totalGlobalMem: %zuM\n\
+       sharedMemPerBlock: %zuKB\n\
+       *sharedMemPerMultiprocessor: %zuKB\n\
+       totalConstMem: %zuKB\n\
+       *multiProcessorCount: %d\n\
+       *Warp Size: %d\n",
+           device_id,
+           props.multiProcessorCount,
+           props.memoryBusWidth,
+           props.maxThreadsPerBlock,
+           props.maxThreadsPerMultiProcessor,
+           props.totalGlobalMem / 1024 / 1024,
+           props.sharedMemPerBlock / 1024,
+           props.sharedMemPerMultiprocessor / 1024,
+           props.totalConstMem / 1024,
+           props.multiProcessorCount,
+           props.warpSize);
 }
 #endif
 

@@ -60,14 +60,12 @@ set(CMAKE_CXX_FLAGS "-Ofast -march=native -DNDEBUG -Wall")
 set(CMAKE_HIP_FLAGS "-Ofast -march=native -stdlib=libstdc++ -DNDEBUG -Wall")
 set(CMAKE_CUDA_FLAGS "-std=c++20 -O3 -DNDEBUG --expt-relaxed-constexpr")
 
-# Dependencies
-find_package(Boost 1.70 REQUIRED program_options)
-
 if(AMD)
   find_package(hip REQUIRED)
   find_package(rocprim REQUIRED CONFIG)
   find_package(rocthrust REQUIRED CONFIG)
   find_package(hipsparse REQUIRED CONFIG)
+
 endif()
 
 if (NVIDIA)

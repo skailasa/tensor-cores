@@ -9,6 +9,25 @@ cat <<EOL > ./c_cpp_properties.json
 {
     "configurations": [
         {
+            "name": "Lumi",
+            "includePath": [
+                "\${workspaceFolder}/include/",
+                "/opt/rocm/include/",
+                "/usr/include",
+                "/usr/local/include",
+                "/usr/include/c++/13/",
+                "/usr/include/c++/13/backward",
+                "${env:ROCM_PATH}/include",
+            ],
+            "defines": [
+                "___HIP_PLATFORM_AMD__",
+                "AMD"
+            ],
+            "compilerPath": "/opt/rocm/bin/hipcc",
+            "cppStandard": "c++20",
+            "intelliSenseMode": "linux-gcc-x86"
+        },
+        {
             "name": "NVidia Workstation",
             "includePath": [
                 "\${workspaceFolder}/include/",

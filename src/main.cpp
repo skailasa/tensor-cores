@@ -24,6 +24,8 @@ int main() {
     // Calculate reference C on host
     std::vector<float> C_ref_h(M * N);
 
+    device_info();
+
 #ifdef AMD
     // gemm_host(A_h, B_h, Dref_h, M, N, K, LDA, LDB, LDD);
 
@@ -56,8 +58,6 @@ int main() {
 #endif
 
 #ifdef NVIDIA
-
-    device_info();
 
     // Allocate space for result
     std::vector<float> C_h(M * N);

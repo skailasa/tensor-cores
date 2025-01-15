@@ -1,5 +1,4 @@
 /// GEMM D = \alpha A @ B + \beta * C
-
 #include <string>
 
 #ifdef AMD
@@ -39,22 +38,22 @@ void sgemm(int kernel_id, int M, int N, int K, float alpha, const float *A, cons
     float milliseconds;
     std::string id;
     switch (kernel_id) {
-        case 0:
-            milliseconds = run_kernel_with_optional_timing([ = ]() {
-                sgemm_simple<<<grid, block>>>(M, N, K, alpha, A, B, beta, C);
-            }, timed);
+    case 0:
+        milliseconds = run_kernel_with_optional_timing([ = ]() {
+            sgemm_simple<<<grid, block>>>(M, N, K, alpha, A, B, beta, C);
+        }, timed);
 
-            id = "(0) Naive kenel";
-            break;
-        case 1:
-            milliseconds = run_kernel_with_optional_timing([ = ]() {
-                sgemm_gmem_coalesced<128><<<grid, block>>>(M, N, K, alpha, A, B, beta, C);
-            }, timed);
-            id = "(1) Global Memory Coalescing Kernel";
-            break;
-        default:
-            milliseconds = 0.0;
-            break;
+        id = "(0) Naive kenel";
+        break;
+    case 1:
+        milliseconds = run_kernel_with_optional_timing([ = ]() {
+            sgemm_gmem_coalesced<128><<<grid, block>>>(M, N, K, alpha, A, B, beta, C);
+        }, timed);
+        id = "(1) Global Memory Coalescing Kernel";
+        break;
+    default:
+        milliseconds = 0.0;
+        break;
     }
 
 
