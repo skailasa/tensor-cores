@@ -7,7 +7,7 @@
 #include <random>
 #include <vector>
 #include <iostream>
-#include "helper.hpp"
+#include "util.hpp"
 #include "gemm.hpp"
 
 int main() {
@@ -19,26 +19,14 @@ int main() {
     int N = 4096;
     int K = 4096;
 
-
     float alpha = 1.0;
     float beta = 0.0;
 
-    std::mt19937 gen(0);
-    std::uniform_real_distribution<float> dist(-1, 1);
-    std::vector<float> A_h(M * K);
+    auto A_h = random_matrix_h<float>(M, K, 0);
+    auto B_h = random_matrix_h<float>(K, N, 0);
 
-    for (int i = 0; i < A_h.size(); ++i) {
-        A_h[i] = dist(gen);
-    }
-
-    std::vector<float> B_h(K * N);
-
-    for (int i = 0; i < B_h.size(); ++i) {
-        B_h[i] = dist(gen);
-    }
-
-    // Calculate reference D on host
-    std::vector<float> Dref_h(M * N);
+    // Calculate reference C on host
+    std::vector<float> C_ref_h(M * N);
 
 #ifdef AMD
     // gemm_host(A_h, B_h, Dref_h, M, N, K, LDA, LDB, LDD);
@@ -73,6 +61,8 @@ int main() {
 
 #ifdef NVIDIA
 
+    device_info();
+
     // Allocate space for result
     std::vector<float> C_h(M * N);
 
@@ -89,12 +79,10 @@ int main() {
     dim3 grid(div_ceil(M, 32), div_ceil(N, 32), 1);
     dim3 block(32, 32, 1);
 
-    sgemm(M, N, K, alpha, A_d, B_d, beta, C_d, grid, block, timed);
+    sgemm(1, M, N, K, alpha, A_d, B_d, beta, C_d, grid, block, timed);
 
-    // Copy back result
+    // // Copy back result
     cudaMemcpy(C_h.data(), C_d, (M * N) * sizeof(float), cudaMemcpyDeviceToHost);
-
-    // print_matrix(C_h, M, N, 1);
 
     // Free resources
     cudaFree(A_d);

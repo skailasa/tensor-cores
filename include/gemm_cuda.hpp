@@ -24,7 +24,7 @@ __global__ void sgemm_simple(int M, int N, int K, float alpha, const float *A, c
 /// With global memory coalescing.
 template <const uint BLOCKSIZE>
 __global__ void sgemm_gmem_coalesced(int M, int N, int K, float alpha, const float *A, const float *B,
-                             float beta, float *C) {
+                                     float beta, float *C) {
 
     // position in C that this thread is responsible for
     const int x = blockIdx.x * BLOCKSIZE + (threadIdx.x / BLOCKSIZE);
