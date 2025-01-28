@@ -1,5 +1,6 @@
 /// GEMM D = \alpha A @ B + \beta * C
 #include <string>
+#include <iostream> // Ensure this header is included
 
 #ifdef AMD
 #include <hip/hip_runtime.h>
