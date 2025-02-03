@@ -2,6 +2,8 @@
 #include <vector>
 #include <cmath>
 #include <tuple>
+#include <concepts>
+#include <assert.h>
 
 #ifdef AMD
 
@@ -134,6 +136,50 @@ void device_info() {
            props.multiProcessorCount,
            props.warpSize);
 }
+
+
+// A first implementation of tiled memcpy, coalesced GMEM reads, bank conflict free writes
+template <std::floating_point T>
+__device__ __forceinline__ void tileMemcpy(
+    T* src,
+    T* dst,
+    const unsigned int src_stride,
+    const unsigned int tile_rows,
+    const unsigned int tile_cols
+) {
+
+    // Flatten out 2D grid of threads in order of increasing threadIdx.x
+    const unsigned int thread_idx = threadIdx.y * blockDim.x + threadIdx.x;
+    const unsigned int num_threads = blockDim.x * blockDim.y;
+
+    // Check that number of threads is a multiple of number of columns in the tile
+    assert(num_threads % tile_cols == 0);
+
+    // assign each thread a row/column in the tile, calculate the column step
+    const unsigned int row_step = num_threads / tile_cols;
+    const unsigned int thread_row = thread_idx / tile_cols;
+    const unsigned int thread_col = thread_idx % tile_cols;
+
+    for (unsigned int r = thread_row; r < tile_rows; r += row_step) {
+        dst[r * tile_cols + thread_col] = src[r * src_stride + thread_col];
+    }
+
+}
+
+/// Convenience wrappers around PTX instructions
+__device__ __forceinline__ uint32_t cvta_to_shared_u32(const void *pointer) {
+    uint32_t address;
+    asm("{\n\t"
+        "  .reg .u64 u64addr;\n\t"
+        "  cvta.to.shared.u64 u64addr, %1;\n\t"
+        "  cvt.u32.u64 %0, u64addr;\n\t"
+        "}"
+        : "=r"(address)
+        : "l"(pointer));
+    return address;
+  }
+
+
 #endif
 
 int div_ceil(int numerator, int denominator) {

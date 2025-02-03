@@ -58,25 +58,50 @@ int main() {
 
 #ifdef NVIDIA
 
+    // // Allocate space for result
+    // std::vector<float> C_h(M * N);
+
+    // // Copy data to device
+    // float *A_d, *B_d, *C_d;
+    // CUDA_CHECK(cudaMalloc(&A_d, (M * K) * sizeof(float)));
+    // CUDA_CHECK(cudaMalloc(&B_d, (K * N) * sizeof(float)));
+    // CUDA_CHECK(cudaMalloc(&C_d, (M * N) * sizeof(float)));
+    // CUDA_CHECK(cudaMemcpy(A_d, A_h.data(), (M * K) * sizeof(float), cudaMemcpyHostToDevice));
+    // CUDA_CHECK(cudaMemcpy(B_d, B_h.data(), (K * N) * sizeof(float), cudaMemcpyHostToDevice));
+
+    // // Launch kernel
+    // dim3 grid(div_ceil(M, 32), div_ceil(N, 32), 1);
+    // dim3 block(32, 32, 1);
+
+    // sgemm(1, M, N, K, alpha, A_d, B_d, beta, C_d, grid, block, timed);
+
+    // // Copy back result
+    // CUDA_CHECK(cudaMemcpy(C_h.data(), C_d, (M * N) * sizeof(float), cudaMemcpyDeviceToHost));
+
+    // // Free resources
+    // CUDA_CHECK(cudaFree(A_d));
+    // CUDA_CHECK(cudaFree(B_d));
+    // CUDA_CHECK(cudaFree(C_d));
+
     // Allocate space for result
-    std::vector<float> C_h(M * N);
+    std::vector<double> C_h(M * N);
 
     // Copy data to device
-    float *A_d, *B_d, *C_d;
-    CUDA_CHECK(cudaMalloc(&A_d, (M * K) * sizeof(float)));
-    CUDA_CHECK(cudaMalloc(&B_d, (K * N) * sizeof(float)));
-    CUDA_CHECK(cudaMalloc(&C_d, (M * N) * sizeof(float)));
-    CUDA_CHECK(cudaMemcpy(A_d, A_h.data(), (M * K) * sizeof(float), cudaMemcpyHostToDevice));
-    CUDA_CHECK(cudaMemcpy(B_d, B_h.data(), (K * N) * sizeof(float), cudaMemcpyHostToDevice));
+    double *A_d, *B_d, *C_d;
+    CUDA_CHECK(cudaMalloc(&A_d, (M * K) * sizeof(double)));
+    CUDA_CHECK(cudaMalloc(&B_d, (K * N) * sizeof(double)));
+    CUDA_CHECK(cudaMalloc(&C_d, (M * N) * sizeof(double)));
+    CUDA_CHECK(cudaMemcpy(A_d, A_h.data(), (M * K) * sizeof(double), cudaMemcpyHostToDevice));
+    CUDA_CHECK(cudaMemcpy(B_d, B_h.data(), (K * N) * sizeof(double), cudaMemcpyHostToDevice));
 
     // Launch kernel
     dim3 grid(div_ceil(M, 32), div_ceil(N, 32), 1);
     dim3 block(32, 32, 1);
 
-    sgemm(1, M, N, K, alpha, A_d, B_d, beta, C_d, grid, block, timed);
+    dgemm(1, M, N, K, alpha, A_d, B_d, beta, C_d, grid, block, timed);
 
     // Copy back result
-    CUDA_CHECK(cudaMemcpy(C_h.data(), C_d, (M * N) * sizeof(float), cudaMemcpyDeviceToHost));
+    CUDA_CHECK(cudaMemcpy(C_h.data(), C_d, (M * N) * sizeof(double), cudaMemcpyDeviceToHost));
 
     // Free resources
     CUDA_CHECK(cudaFree(A_d));
