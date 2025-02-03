@@ -39,7 +39,7 @@ void dgemm(int kernel_id, int M, int N, int K, double alpha, double *A, double *
     break;
     case 1:
         milliseconds = run_kernel_with_optional_timing([ = ]() {
-            dgemm_hierarchical_tiling<8, 8, 4, 2, 2, 2><<<grid, block>>>(M, N, K, alpha, A, B, beta, C);
+            dgemm_wmma<<<grid, block>>>(M, N, K, alpha, A, B, beta, C);
         }, timed);
 
         id = "(0) Naive kernel";
