@@ -18,11 +18,11 @@ int main() {
     float alpha = 1.0;
     float beta = 0.0;
 
-    auto A_h = random_matrix_h<float>(M, K, 0);
-    auto B_h = random_matrix_h<float>(K, N, 0);
+    auto A_h = random_matrix_h<double>(M, K, 0);
+    auto B_h = random_matrix_h<double>(K, N, 0);
 
     // Calculate reference C on host
-    std::vector<float> C_ref_h(M * N);
+    std::vector<double> C_ref_h(M * N);
 
     device_info();
 
@@ -83,7 +83,7 @@ int main() {
     // CUDA_CHECK(cudaFree(B_d));
     // CUDA_CHECK(cudaFree(C_d));
 
-    // Allocate space for result
+    // // Allocate space for result
     std::vector<double> C_h(M * N);
 
     // Copy data to device
@@ -103,7 +103,7 @@ int main() {
     // Copy back result
     CUDA_CHECK(cudaMemcpy(C_h.data(), C_d, (M * N) * sizeof(double), cudaMemcpyDeviceToHost));
 
-    // Free resources
+    // // Free resources
     CUDA_CHECK(cudaFree(A_d));
     CUDA_CHECK(cudaFree(B_d));
     CUDA_CHECK(cudaFree(C_d));

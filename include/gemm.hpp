@@ -42,12 +42,24 @@ void dgemm(int kernel_id, int M, int N, int K, double alpha, double *A, double *
             dgemm_wmma<<<grid, block>>>(M, N, K, alpha, A, B, beta, C);
         }, timed);
 
-        id = "(0) Naive kernel";
+        id = "(1) WMMA kernel";
     break;
     default:
         milliseconds = 0.0;
     break;
     }
+
+    std::cout << "Kernel ID: " << id << std::endl;
+    std::cout << "Kernel execution time: " << milliseconds << " ms" << std::endl;
+    auto flops = count_flops_gemm(M, N, K);
+    auto [read, write] = count_memory_gemm<float>(M, N, K);
+    double gflops = (double) flops / 1e9; // Convert to GFLOPs
+
+    printf("FLOPs: %f GFLOPs \n", gflops);
+    printf("Reads: %f MB \n", static_cast<double>(read) / (double)(1024 * 1024));
+    printf("Writes: %f MB \n", static_cast<double>(write) / (double)(1024 * 1024));
+    printf("Throughput: %f GFLOPS \n", gflops /( milliseconds / 1000));
+    printf("Throughput: %f GB/s \n", (static_cast<double>(read) / (double(1024 * 1024 * 1024))) /( milliseconds / 1000));
 
 #endif
 }

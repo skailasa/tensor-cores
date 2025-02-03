@@ -118,8 +118,8 @@ __global__ void dgemm_wmma(const int M, int N, int K, double alpha, const double
         uint32_t const matrix_mma_a_row_idx = warp_M * 8;
         uint32_t const matrix_mma_a_col_idx = ki;
 
-        uint32_t const matrix_mma_b_row_idx = warp_N * 8;
-        uint32_t const matrix_mma_b_col_idx = ki;
+        uint32_t const matrix_mma_b_row_idx = ki;
+        uint32_t const matrix_mma_b_col_idx = warp_N * 8;
 
         uint32_t const matrix_mma_c_row_idx = warp_M * 8;
         uint32_t const matrix_mma_c_col_idx = warp_N * 8;
@@ -129,6 +129,8 @@ __global__ void dgemm_wmma(const int M, int N, int K, double alpha, const double
             matrix_mma_a_row_idx < M &&
             matrix_mma_a_col_idx < K &&
             matrix_mma_b_row_idx < K &&
+            matrix_mma_b_col_idx < N &&
+            matrix_mma_c_row_idx < M &&
             matrix_mma_b_col_idx < N
         )
         {
@@ -148,7 +150,6 @@ __global__ void dgemm_wmma(const int M, int N, int K, double alpha, const double
             double* C_p = C + matrix_mma_c_row_idx * N + matrix_mma_c_col_idx;
 
             wmma::store_matrix_sync(C_p, c_frag, N, wmma::mem_row_major);
-
         }
 
         if (matrix_mma_c_row_idx < M && matrix_mma_b_col_idx < N) {
@@ -165,7 +166,6 @@ __global__ void dgemm_wmma(const int M, int N, int K, double alpha, const double
             double* C_p2 = C + matrix_mma_c_row_idx * N + matrix_mma_c_col_idx;
             // Store the output
             wmma::store_matrix_sync(C_p2, c_frag, N, wmma::mem_row_major);
-
         }
     }
 }
