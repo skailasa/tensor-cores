@@ -17,7 +17,7 @@ __global__ void sgemm_simple(int M, int N, int K, float alpha, const float *A, c
         float tmp = 0.;
 
         for (int i = 0; i < K; ++i) {
-            tmp += A[x * K + i] + B[i * N + y];
+            tmp += A[x * K + i] * B[i * N + y];
         }
 
         // C = alpha * (A@B) + beta * C
@@ -25,20 +25,19 @@ __global__ void sgemm_simple(int M, int N, int K, float alpha, const float *A, c
     }
 }
 
-/// Naive kernel for BLAS3 operation
 __global__ void dgemm_simple(int M, int N, int K, double alpha, const double *A, const double *B,
                              double beta, double *C) {
 
-    // position in C that this thread is responsible for
+    // Position in C that this thread is responsible for
     const uint x = blockIdx.x * blockDim.x + threadIdx.x;
     const uint y = blockIdx.y * blockDim.y + threadIdx.y;
 
-    // condition necesssary for non multiples of 32
+    // Ensure thread is within bounds
     if (x < M && y < N) {
-        double tmp = 0.;
+        double tmp = 0.0;
 
         for (int i = 0; i < K; ++i) {
-            tmp += A[x * K + i] + B[i * N + y];
+            tmp += A[x * K + i] * B[i * N + y];
         }
 
         // C = alpha * (A@B) + beta * C
@@ -95,77 +94,64 @@ __global__ void sgemm_gmem_coalesced(int M, int N, int K, float alpha, const flo
 /// @param beta
 /// @param C
 /// @return
-__global__ void dgemm_wmma(const int M, int N, int K, double alpha, const double *A, const double *B,
-                                     double beta, double *C) {
+__global__ void dgemm_wmma(const int M, int N, int K,
+                           double alpha, const double *A,
+                           const double *B, double beta, double *C) {
+
+    // Leading dimension, row major
+    int lda = K;
+    int ldb = N;
+    int ldc = N;
 
     // Tile using a 2D grid
+    int warp_m = (blockIdx.y * blockDim.y + threadIdx.y); // warp row
+    int warp_n = (blockIdx.x * blockDim.x + threadIdx.x) / 32; // warp column
 
-    // Determine the warp index
-    int warp_M = (blockIdx.x * blockDim.x + threadIdx.x) / 32; // Divide by warp size to find warp position
-    int warp_N = (blockIdx.y * blockDim.y + threadIdx.y);
+    // Compute starting row and column for the tile of C that this thread is contributing to
+    int c_row = warp_m * 8;
+    int c_col = warp_n * 8;
 
-    // Create fragments
+    // Declare the accumulator fragment and initialize it to 0.
+    wmma::fragment<wmma::accumulator, 8, 8, 4, double> acc_frag;
+    wmma::fragment<wmma::accumulator, 8, 8, 4, double> c_frag;
+    wmma::fill_fragment(acc_frag, 0.0);
+    wmma::fill_fragment(c_frag, 0.0);
+
+    // initialise other fragments
     wmma::fragment<wmma::matrix_a, 8, 8, 4, double, wmma::row_major> a_frag;
     wmma::fragment<wmma::matrix_b, 8, 8, 4, double, wmma::row_major> b_frag;
-    wmma::fragment<wmma::accumulator, 8, 8, 4, double> c_frag;
-    wmma::fill_fragment(c_frag, 0.0f); // accumulate into 0
 
+    // loop over shared dimension
+    for (int k = 0; k < K ; k += 4) {
 
-    // Loop over shared dimension
-    for (uint32_t ki = 0; ki < K; ki += 4) {
+        int a_row = warp_m * 8;
+        int a_col = k;
+        int b_row = k;
+        int b_col = warp_n * 8;
 
-        // Find first element for mma matrices
-        uint32_t const matrix_mma_a_row_idx = warp_M * 8;
-        uint32_t const matrix_mma_a_col_idx = ki;
+        // bounds checking
+        if (a_row < M && a_col < K && b_row < K && b_col < N) {
+            // load 8x4 tiles of A (row major)
+            const double *A_tile = A + a_row * lda + a_col;
+            const double *B_tile = B + b_row * ldb + b_col;
 
-        uint32_t const matrix_mma_b_row_idx = ki;
-        uint32_t const matrix_mma_b_col_idx = warp_N * 8;
+            wmma::load_matrix_sync(a_frag, A_tile, lda);
+            wmma::load_matrix_sync(b_frag, B_tile, ldb);
 
-        uint32_t const matrix_mma_c_row_idx = warp_M * 8;
-        uint32_t const matrix_mma_c_col_idx = warp_N * 8;
-
-        // Check bounds
-        if (
-            matrix_mma_a_row_idx < M &&
-            matrix_mma_a_col_idx < K &&
-            matrix_mma_b_row_idx < K &&
-            matrix_mma_b_col_idx < N &&
-            matrix_mma_c_row_idx < M &&
-            matrix_mma_b_col_idx < N
-        )
-        {
-
-            // Create pointers to portion of global matrix to load into fragment
-            // We are assuming row major order
-            double const* A_p = A + matrix_mma_a_row_idx  * K + matrix_mma_a_col_idx;
-            double const* B_p = B + matrix_mma_b_row_idx  * N + matrix_mma_b_col_idx;
-
-            // Load into registers
-            wmma::load_matrix_sync(a_frag, A_p, K);
-            wmma::load_matrix_sync(b_frag, B_p, N);
-
-            // Perform matrix mult
-            wmma::mma_sync(c_frag, a_frag, b_frag, c_frag);
-
-            double* C_p = C + matrix_mma_c_row_idx * N + matrix_mma_c_col_idx;
-
-            wmma::store_matrix_sync(C_p, c_frag, N, wmma::mem_row_major);
-        }
-
-        if (matrix_mma_c_row_idx < M && matrix_mma_b_col_idx < N) {
-
-            double const* C_p = C + matrix_mma_c_row_idx * N + matrix_mma_c_col_idx;
-            wmma::load_matrix_sync(c_frag, C_p, N, wmma::mem_row_major);
-
-            // Let compiler figure out how to allocate registers for scaling
-            for (uint32_t i = 0; i < c_frag.num_elements; i++)
-            {
-                c_frag.x[i] = alpha * c_frag.x[i] + beta * c_frag.x[i];
-            }
-
-            double* C_p2 = C + matrix_mma_c_row_idx * N + matrix_mma_c_col_idx;
-            // Store the output
-            wmma::store_matrix_sync(C_p2, c_frag, N, wmma::mem_row_major);
+            wmma::mma_sync(acc_frag, a_frag, b_frag, acc_frag);
         }
     }
+
+    if (c_row < M && c_col < N) {
+        double *C_tile = C + c_row * ldc + c_col;
+        wmma::load_matrix_sync(c_frag, C_tile, ldc, wmma::mem_row_major);
+
+        for (int i=0; i < c_frag.num_elements; i++) {
+            c_frag.x[i] = alpha * acc_frag.x[i] + beta * c_frag.x[i];
+        }
+
+        wmma::store_matrix_sync(C_tile, c_frag, ldc, wmma::mem_row_major);
+    }
+
 }
+

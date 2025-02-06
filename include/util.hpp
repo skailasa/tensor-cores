@@ -4,6 +4,7 @@
 #include <tuple>
 #include <concepts>
 #include <assert.h>
+#include <cmath>
 
 #ifdef AMD
 
@@ -238,20 +239,9 @@ void print_matrix(const std::vector<T> &A,
 }
 
 /// @brief  Perform GEMM on host device for testing
-/// @tparam T
-/// @tparam U
-/// @param A
-/// @param B
-/// @param C
-/// @param M
-/// @param N
-/// @param K
-/// @param LDA
-/// @param LDB
-/// @param LDC
-template<typename T, typename U>
-void gemm_host(const std::vector<U> &A,
-               const std::vector<U> &B,
+template <typename T>
+void gemm_host(const std::vector<T> &A,
+               const std::vector<T> &B,
                std::vector<T> &C,
                const int M,
                const int N,
@@ -259,15 +249,19 @@ void gemm_host(const std::vector<U> &A,
                const int LDA,
                const int LDB,
                const int LDC) {
-    for (int m = 0; m < M; ++m) {
-        for (int n = 0; n < N; ++n) {
-            T c = 0.0;
+    // Ensure output matrix C is properly initialized
+    for (int i = 0; i < M; i++) {
+        for (int j = 0; j < N; j++) {
+            C[i * LDC + j] = 0;
+        }
+    }
 
-            for (int k = 0; k < K; ++k) {
-                c += A[k + m * LDA] * B[n + k * LDB];
+    // Perform matrix multiplication
+    for (int i = 0; i < M; i++) {         // Iterate over rows of A and C
+        for (int j = 0; j < N; j++) {     // Iterate over columns of B and C
+            for (int k = 0; k < K; k++) { // Sum over the inner K-dimension
+                C[i * LDC + j] += A[i * LDA + k] * B[k * LDB + j];
             }
-
-            C[n + m * LDC] = c;
         }
     }
 }
@@ -282,21 +276,31 @@ void gemm_host(const std::vector<U> &A,
 /// @param LDB
 /// @return
 template<typename T>
-double compute_l2_error(const std::vector<T> &A,
+double compute_error_frobenius(const std::vector<T> &A,
                         const std::vector<T> &B,
                         const int M,
                         const int N,
                         const int LDA,
                         const int LDB) {
-
     double err = 0.0;
 
-    for (int m = 0; m < M; ++m) {
-        for (int n = 0; n < N; ++n) {
-            const double x = A[n + LDA * m] - B[n + LDB * m];
-            err += x * x;
+
+    for (int i = 0; i < M; ++i) {
+        for (int j = 0; j < N; ++j) {
+            err += std::pow(std::abs(A[i * LDA + j] - B[i * LDB + j]), 2.0);
+            // double tmp = std::abs(A[i * LDA + j] - B[i * LDB + j]);
+
+            // std::cout << "i " << i << "j " << j << "err " << tmp << std::endl;
+            // err += tmp;
         }
     }
 
-    return err;
+    // std::cout << "IVEC ";
+    // // Print out each element in the vector
+    // for (const auto &elem : ivec) {
+    //     std::cout << elem << " ";
+    // }
+    // std::cout << std::endl;
+
+    return std::sqrt(err);
 }
