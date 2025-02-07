@@ -25,23 +25,49 @@ __global__ void sgemm_simple(int M, int N, int K, float alpha, const float *A, c
     }
 }
 
+/// The idea here is to give each thread responsibility over a single entry in the output matrix
+/// each thread computes a dot product
 __global__ void dgemm_simple(int M, int N, int K, double alpha, const double *A, const double *B,
                              double beta, double *C) {
 
     // Position in C that this thread is responsible for
-    const uint x = blockIdx.x * blockDim.x + threadIdx.x;
-    const uint y = blockIdx.y * blockDim.y + threadIdx.y;
+    const uint row_c = blockIdx.y * blockDim.y + threadIdx.y;
+    const uint col_c = blockIdx.x * blockDim.x + threadIdx.x;
 
-    // Ensure thread is within bounds
-    if (x < M && y < N) {
+    // Ensure thread is within bounds, i.e. when M and N aren't multiples of tile size
+    if (row_c < M && col_c < N) {
         double tmp = 0.0;
 
-        for (int i = 0; i < K; ++i) {
-            tmp += A[x * K + i] * B[i * N + y];
+        for (int k = 0; k < K; ++k) {
+            tmp += A[row_c * K + k] * B[k * N + col_c];
         }
 
         // C = alpha * (A@B) + beta * C
-        C[x * N + y] = alpha * tmp + beta * C[x * N + y];
+        C[row_c * N + col_c] = alpha * tmp + beta * C[row_c * N + col_c];
+    }
+}
+
+template <const uint BLOCKSIZE>
+__global__ void dgemm_gmem_coalesced(int M, int N, int K, double alpha, const double *A, const double *B,
+                                     double beta, double *C) {
+
+    // Thread coordinates in the output matrix C
+    // const uint row_c = blockIdx.y * BLOCKSIZE + threadIdx.y;
+    // const uint col_c = blockIdx.x * BLOCKSIZE + threadIdx.x;
+    const int col_c = blockIdx.x * BLOCKSIZE + (threadIdx.x / BLOCKSIZE);
+    const int row_c = blockIdx.y * BLOCKSIZE + (threadIdx.x % BLOCKSIZE);
+
+    // Ensure thread is within bounds
+    if (row_c < M && col_c < N) {
+        double tmp = 0.0;
+
+        for (int k = 0; k < K; ++k) {
+            // Now B is accessed in a coalesced way
+            tmp += A[row_c * K + k] * B[col_c + k * N];
+        }
+
+        // Compute final output
+        C[row_c * N + col_c] = alpha * tmp + beta * C[row_c * N + col_c];
     }
 }
 
@@ -84,16 +110,7 @@ __global__ void sgemm_gmem_coalesced(int M, int N, int K, float alpha, const flo
 // }
 
 
-/// @brief DGEMM Using WMMA API, for Ada Generation RTX 6000.
-/// @param M
-/// @param N
-/// @param K
-/// @param alpha
-/// @param A
-/// @param B
-/// @param beta
-/// @param C
-/// @return
+/// @brief Simple DGEMM Using WMMA API, for Ada Generation RTX 6000, 1 warp per block
 __global__ void dgemm_wmma(const int M, int N, int K,
                            double alpha, const double *A,
                            const double *B, double beta, double *C) {
@@ -152,6 +169,4 @@ __global__ void dgemm_wmma(const int M, int N, int K,
 
         wmma::store_matrix_sync(C_tile, c_frag, ldc, wmma::mem_row_major);
     }
-
 }
-

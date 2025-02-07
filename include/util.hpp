@@ -288,19 +288,8 @@ double compute_error_frobenius(const std::vector<T> &A,
     for (int i = 0; i < M; ++i) {
         for (int j = 0; j < N; ++j) {
             err += std::pow(std::abs(A[i * LDA + j] - B[i * LDB + j]), 2.0);
-            // double tmp = std::abs(A[i * LDA + j] - B[i * LDB + j]);
-
-            // std::cout << "i " << i << "j " << j << "err " << tmp << std::endl;
-            // err += tmp;
         }
     }
-
-    // std::cout << "IVEC ";
-    // // Print out each element in the vector
-    // for (const auto &elem : ivec) {
-    //     std::cout << elem << " ";
-    // }
-    // std::cout << std::endl;
 
     return std::sqrt(err);
 }

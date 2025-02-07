@@ -39,10 +39,16 @@ void dgemm(int kernel_id, int M, int N, int K, double alpha, double *A, double *
     break;
     case 1:
         milliseconds = run_kernel_with_optional_timing([ = ]() {
+            dgemm_gmem_coalesced<8><<<grid, block>>>(M, N, K, alpha, A, B, beta, C);
+        }, timed);
+        id = "(1) Global Memory Coalescing Kernel";
+        break;
+    case 2:
+        milliseconds = run_kernel_with_optional_timing([ = ]() {
             dgemm_wmma<<<grid, block>>>(M, N, K, alpha, A, B, beta, C);
         }, timed);
 
-        id = "(1) WMMA kernel";
+        id = "(2) Simple WMMA kernel, Adjustable Warp Per Block";
     break;
     default:
         milliseconds = 0.0;
@@ -87,7 +93,7 @@ void sgemm(int kernel_id, int M, int N, int K, float alpha, const float *A, cons
         break;
     case 1:
         milliseconds = run_kernel_with_optional_timing([ = ]() {
-            sgemm_gmem_coalesced<128><<<grid, block>>>(M, N, K, alpha, A, B, beta, C);
+            sgemm_gmem_coalesced<32><<<grid, block>>>(M, N, K, alpha, A, B, beta, C);
         }, timed);
         id = "(1) Global Memory Coalescing Kernel";
         break;
@@ -101,6 +107,7 @@ void sgemm(int kernel_id, int M, int N, int K, float alpha, const float *A, cons
     auto flops = count_flops_gemm(M, N, K);
     auto [read, write] = count_memory_gemm<float>(M, N, K);
     double gflops = (double) flops / 1e9; // Convert to GFLOPs
+
 
     printf("FLOPs: %f GFLOPs \n", gflops);
     printf("Reads: %f MB \n", static_cast<double>(read) / (double)(1024 * 1024));
