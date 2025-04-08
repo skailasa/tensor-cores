@@ -13,31 +13,39 @@ int main() {
     int K = 512;
     int N = 512;
 
-   float* A = new float[M * K];
-   zero_init_matrix<float>(A, M * K);
-   randomise_matrix<float>(A, M * K, false);
+    float* A = new float[M * K];
+    zero_init_matrix<float>(A, M * K);
+    randomise_matrix<float>(A, M * K, false);
 
-   float* B = new float[K * N];
-   zero_init_matrix<float>(B, K * N);
-   randomise_matrix<float>(B, K * N, false);
-   auto layout = Layout::RowMajor;
+    float* B = new float[K * N];
+    zero_init_matrix<float>(B, K * N);
+    randomise_matrix<float>(B, K * N, false);
+    auto layout = Layout::RowMajor;
+    auto cache_configuration = cudaFuncCachePreferL1;
 
-  const std::string logFile = "logFile.txt";
+    const std::string logFile = "logFile.txt";
 
-   std::ofstream fs;
-   fs.open(logFile);
+    std::ofstream fs;
+    fs.open(logFile);
 
-   bool print_matrices = false;
-
-   if (print_matrices) {
-    fs << "A:\n";
-    print_matrix<float>(A, M, K, fs, layout);
-    fs << "B:\n";
-    print_matrix<float>(B, K, N, fs, layout);
-   }
+    std::ostringstream oss;
+    oss << "Cache Configuration: " << cache_config_to_string(cache_configuration) << std::endl
+        << "Data Ordering: " << ordering_to_string(layout) << std::endl;
 
 
-    #ifdef NVIDIA
+    // Print device properties
+    device_info(fs);
+
+    bool print_matrices = false;
+
+    if (print_matrices) {
+        fs << "A:\n";
+        print_matrix<float>(A, M, K, fs, layout);
+        fs << "B:\n";
+        print_matrix<float>(B, K, N, fs, layout);
+    }
+
+#ifdef NVIDIA
     float* C = new float[M * N];
     zero_init_matrix<float>(C, M * N);
 
@@ -51,17 +59,10 @@ int main() {
     CUDA_CHECK(cudaMemcpy(B_d, B, (K * N) * sizeof(float), cudaMemcpyHostToDevice));
 
     // Perform GEMM
+    auto time_cublas = runKernel32(0, layout, cache_configuration, M, N, K, alpha, A_d, B_d, beta, C_d);
+    auto time_kernel = runKernel32(2, layout, cache_configuration, M, N, K, alpha, A_d, B_d, beta, C_d);
 
-    auto time_cublas = runKernel32(0, layout, M, N, K, alpha, A_d, B_d, beta, C_d);
-    auto time_kernel = runKernel32(2, layout, M, N, K, alpha, A_d, B_d, beta, C_d);
-
-    auto gflops =  count_flops(M, N, K) / 1000000000.0;
-    fs << "FLOP: " << gflops << " GFLOP" << std::endl;
-    fs << "Throughput: " << gflops / (time_kernel / 1e3) << " GFLOP/s" << std::endl;
-    fs << "Throughput cuBLAS: " << gflops / (time_cublas / 1e3) << " GFLOP/s" << std::endl;
-    fs << "Throughput (% of cuBLAS): " << time_cublas/time_kernel * 100.0 << "  %" << std::endl;
-    fs << "Time (kernel): " <<  time_kernel << " ms" << std::endl;
-    fs << "Time (cuBLAS): " <<  time_cublas << " ms" << std::endl;
+    auto gflops = performance_metrics(fs, M, N, K, time_kernel, time_cublas);
 
     // Copy back result
     CUDA_CHECK(cudaMemcpy(A, A_d, (M * K) * sizeof(float), cudaMemcpyDeviceToHost));
@@ -79,10 +80,9 @@ int main() {
         print_matrix<float>(C_cpu, M, N, fs, layout);
     }
 
+    // Test
     auto error = compute_relative_error_fro<float>(C, C_cpu, M, N, layout);
-
-    fs << "Error (Frobenius): " << error << std::endl;
-
+    fs << "Relative Error wrt CPU (Frobenius): " << error << std::endl;
 
     // Free resources
     CUDA_CHECK(cudaFree(A_d));
@@ -90,7 +90,7 @@ int main() {
     CUDA_CHECK(cudaFree(C_d));
 
 
-    #endif
+#endif
 
 }
 

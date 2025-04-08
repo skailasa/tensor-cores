@@ -150,3 +150,16 @@ CUDA reserves 1KB of shared memory per thread block. Hence GPUs with CC 8.9 can 
 
 - At a lowe rlevel the application should maximise parallel execution between the various funcional units within a GPU
 - Utilisation is therefore directly linked to the number of resident warps.
+
+
+# Shared Memory Carveout
+
+- Modern NVIDIA GPUs have a unified data cache per SM that can be configured in two ways
+
+- L1 Cache - automatically stores most recently used global/texture memory (read only and read/write)
+- Shared Memory - programmer controlled on-chip scratchpad used within a thread block
+
+But these are not separate pools, and share the same on-chip space.
+
+`SharedMemoryCarveout` controls how much shared memory on-chip is reserved for shared memory vs L1 Cache.
+

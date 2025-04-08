@@ -9,6 +9,11 @@
 #endif
 
 
+// Type alias for GEMM kernels i.e. pointers to kernel functions
+// equivalent to typedef void (*my_kernel)(arg1, arg2,...) - a raw pointer to a function
+// can point to any function with this/that signature
+using KernelPtr = void(*)(int, int, int, float, const float*, const float*, float, float*);
+
 /// @brief  Call cubLAS with single precision inputs
 void runCublasF32(cublasHandle_t handle, Layout layout, int M, int N, int K, float alpha, float *A, float *B, float beta, float*C) {
 
@@ -72,73 +77,83 @@ void runSgemmCpu(Layout layout, int M, int N, int K, float alpha, float *A, floa
     }
 }
 
-void runSGemmNaive(Layout layout, int M, int N, int K, float alpha, float *A, float *B, float beta, float *C) {
+void runSGemmNaive(Layout layout, cudaFuncCache cache_configuration,  int M, int N, int K, float alpha, float *A, float *B, float beta, float *C) {
     dim3 gridDim(ceil_div(M, 32), ceil_div(N, 32));
     dim3 blockDim(32, 32);
 
     if (layout == Layout::RowMajor) {
-        sgemm_naive_row_major<<<gridDim, blockDim>>>(M, N, K, alpha, A, B, beta, C);
+        KernelPtr kernel = sgemm_naive_row_major;
+        cudaFuncSetCacheConfig(kernel, cache_configuration);
+        kernel<<<gridDim, blockDim>>>(M, N, K, alpha, A, B, beta, C);
+
     } else if (layout == Layout::ColumnMajor) {
-        sgemm_naive_column_major<<<gridDim, blockDim>>>(M, N, K, alpha, A, B, beta, C);
+        KernelPtr kernel = sgemm_naive_column_major;
+        cudaFuncSetCacheConfig(kernel, cache_configuration);
+        kernel<<<gridDim, blockDim>>>(M, N, K, alpha, A, B, beta, C);
     }
 }
 
 
-void runSgemmSharedMemCacheBlocking(Layout layout, int M, int N, int K, float alpha, float *A, float *B, float beta, float *C) {
-    const uint BLOCKSIZE = 64;
-    dim3 blockDim(BLOCKSIZE, BLOCKSIZE);
-    dim3 gridDim(ceil_div(M, BLOCKSIZE), ceil_div(N, BLOCKSIZE));
+void runSgemmSharedMemCacheBlocking(Layout layout, cudaFuncCache cache_configuration, int M, int N, int K, float alpha, float *A, float *B, float beta, float *C) {
 
+    const uint BLOCKSIZE = 32;
     if (layout == Layout::RowMajor) {
-        sgemm_smem_cache_blocking_row_major<BLOCKSIZE><<<gridDim, blockDim>>>(M, N, K, alpha, A, B, beta, C);
-    } else if (layout == Layout::ColumnMajor) {
-        sgemm_smem_cache_blocking_column_major<BLOCKSIZE><<<gridDim, blockDim>>>(M, N, K, alpha, A, B, beta, C);
+        dim3 blockDim(BLOCKSIZE, BLOCKSIZE);
+        dim3 gridDim(ceil_div(M, BLOCKSIZE), ceil_div(N, BLOCKSIZE));
+        KernelPtr kernel = sgemm_smem_cache_blocking_row_major<BLOCKSIZE>;
+        cudaFuncSetCacheConfig(kernel, cache_configuration);
+        kernel<<<gridDim, blockDim>>>(M, N, K, alpha, A, B, beta, C);
 
+    } else if (layout == Layout::ColumnMajor) {
+        dim3 blockDim(BLOCKSIZE, BLOCKSIZE);
+        dim3 gridDim(ceil_div(N, BLOCKSIZE), ceil_div(M, BLOCKSIZE));
+        KernelPtr kernel = sgemm_smem_cache_blocking_column_major<BLOCKSIZE>;
+        cudaFuncSetCacheConfig(kernel, cache_configuration);
+        kernel<<<gridDim, blockDim>>>(M, N, K, alpha, A, B, beta, C);
     }
 }
 
 
-float runKernel32(int kernel_number, Layout layout, int M, int N, int K, float alpha, float *A, float *B, float beta, float *C) {
+float runKernel32(int kernel_number, Layout layout, cudaFuncCache cache_configuration, int M, int N, int K, float alpha, float *A, float *B, float beta, float *C) {
 
-    cublasStatus_t status; // cuBLAS functions status
     cublasHandle_t handle; // cublas context
-    status = cublasCreate_v2(&handle); // initialize CUBLAS context
+    auto _status = cublasCreate_v2(&handle); // initialize CUBLAS context
     float time;
 
     switch (kernel_number) {
 
-        // Default cuBLAS call in single precision
-        case 0:
-            // Warmup call
+    // Default cuBLAS call in single precision
+    case 0:
+        // Warmup call
+        runCublasF32(handle, layout, M, N, K, alpha, A, B, beta, C);
+        time = run_kernel_with_optional_timing( [ = ]()  {
             runCublasF32(handle, layout, M, N, K, alpha, A, B, beta, C);
-            time = run_kernel_with_optional_timing( [ = ]()  {
-                runCublasF32(handle, layout, M, N, K, alpha, A, B, beta, C);
-            }, true);
+        }, true);
 
-            return time;
+        return time;
         break;
 
-        // single naive kernel
-        case 1:
-            // Warmup call
-            time = run_kernel_with_optional_timing( [ = ]()  {
-                runSGemmNaive(layout, M, N, K, alpha, A, B, beta, C);
-            }, true);
-
-        break;
-
-        // single naive kernel
-        case 2:
-            // Warmup call
-            time = run_kernel_with_optional_timing( [ = ]()  {
-                runSgemmSharedMemCacheBlocking(layout, M, N, K, alpha, A, B, beta, C);
-            }, true);
+    // single naive kernel
+    case 1:
+        // Warmup call
+        time = run_kernel_with_optional_timing( [ = ]()  {
+            runSGemmNaive(layout, cache_configuration, M, N, K, alpha, A, B, beta, C);
+        }, true);
 
         break;
 
+    // single naive kernel
+    case 2:
+        // Warmup call
+        time = run_kernel_with_optional_timing( [ = ]()  {
+            runSgemmSharedMemCacheBlocking(layout, cache_configuration, M, N, K, alpha, A, B, beta, C);
+        }, true);
 
-        default:
-            throw std::invalid_argument("Unknown kernel number");
+        break;
+
+
+    default:
+        throw std::invalid_argument("Unknown kernel number");
     }
 
     return time;
