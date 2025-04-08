@@ -40,37 +40,67 @@ void zero_init_matrix(T *mat, int size) {
   }
 }
 
+enum class Layout { RowMajor, ColumnMajor };
+
+
 template <typename T>
-void print_matrix(const T *A, int M, int N, std::ofstream &fs) {
-  int i;
-  fs << std::setprecision(4)
-     << std::fixed; // Set floating-point precision and fixed notation
+void print_matrix(const T* A, int M, int N, std::ofstream& fs, Layout layout) {
+  fs << std::setprecision(4) << std::fixed;  // Set floating-point precision
   fs << "[";
-  for (i = 0; i < M * N; i++) {
-    if ((i + 1) % N == 0)
-      fs << std::setw(5) << A[i]; // Set field width and write the value
-    else
-      fs << std::setw(5) << A[i] << ", ";
-    if ((i + 1) % N == 0) {
-      if (i + 1 < M * N)
-        fs << ";\n";
+
+  for (int i = 0; i < M; ++i) {
+    for (int j = 0; j < N; ++j) {
+      int idx;
+      if (layout == Layout::RowMajor)
+        idx = i * N + j;        // A[i][j]
+      else
+        idx = j * M + i;        // A(i,j) in column-major layout
+
+      fs << std::setw(8) << A[idx];
+      if (j < N - 1)
+        fs << ", ";
     }
+
+    if (i < M - 1)
+      fs << ";\n";
   }
+
   fs << "]\n";
 }
 
 template <typename T>
-double compute_error_fro(T *A, T *B, int M, int N) {
-    double error = 0.0;
+double compute_frobenius_norm(const T* A, int M, int N, Layout layout) {
+    double norm = 0.0;
 
     for (int i = 0; i < M; i++) {
         for (int j = 0; j < N; j++) {
-            double diff = A[i * N + j] - B[i * N + j];  // Correct indexing
-            error += diff * diff;
+            int idx = (layout == Layout::RowMajor) ? (i * N + j) : (j * M + i);
+            norm += static_cast<double>(A[idx]) * static_cast<double>(A[idx]);
         }
     }
 
-    return std::sqrt(error);  // Take the square root at the end
+    return std::sqrt(norm);
+}
+
+template <typename T>
+double compute_relative_error_fro(const T* A, const T* B, int M, int N, Layout layout) {
+    double diff_norm = 0.0;
+    double ref_norm  = 0.0;
+
+    for (int i = 0; i < M; i++) {
+        for (int j = 0; j < N; j++) {
+            int idx = (layout == Layout::RowMajor) ? (i * N + j) : (j * M + i);
+
+            double a = static_cast<double>(A[idx]);
+            double b = static_cast<double>(B[idx]);
+
+            double diff = a - b;
+            diff_norm += diff * diff;
+            ref_norm += a * a;
+        }
+    }
+
+    return std::sqrt(diff_norm) / std::sqrt(ref_norm + 1e-20); // avoid div-by-zero
 }
 
 #ifdef NVIDIA
@@ -94,6 +124,7 @@ float run_kernel_with_optional_timing(KernelCallable kernel_call, bool timed = f
         cudaEventCreate(&stop);
 
         // Record start event
+        cudaDeviceSynchronize();
         cudaEventRecord(start, 0);
 
         // Execute the kernel
@@ -110,8 +141,6 @@ float run_kernel_with_optional_timing(KernelCallable kernel_call, bool timed = f
         // Destroy CUDA events
         cudaEventDestroy(start);
         cudaEventDestroy(stop);
-        cudaDeviceSynchronize();
-
         return milliseconds;
     } else {
         // Just execute the kernel

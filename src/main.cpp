@@ -20,20 +20,22 @@ int main() {
    float* B = new float[K * N];
    zero_init_matrix<float>(B, K * N);
    randomise_matrix<float>(B, K * N, false);
+   auto layout = Layout::RowMajor;
 
   const std::string logFile = "logFile.txt";
 
    std::ofstream fs;
    fs.open(logFile);
 
-   bool print_matrices = true;
+   bool print_matrices = false;
 
    if (print_matrices) {
-    // fs << "A:\n";
-    // print_matrix<float>(A, M, K, fs);
-    // fs << "B:\n";
-    // print_matrix<float>(B, K, N, fs);
+    fs << "A:\n";
+    print_matrix<float>(A, M, K, fs, layout);
+    fs << "B:\n";
+    print_matrix<float>(B, K, N, fs, layout);
    }
+
 
     #ifdef NVIDIA
     float* C = new float[M * N];
@@ -49,11 +51,15 @@ int main() {
     CUDA_CHECK(cudaMemcpy(B_d, B, (K * N) * sizeof(float), cudaMemcpyHostToDevice));
 
     // Perform GEMM
-    auto time = runKernel32(5, M, N, K, alpha, A_d, B_d, beta, C_d);
+
+    auto time_cublas = runKernel32(0, layout, M, N, K, alpha, A_d, B_d, beta, C_d);
+    auto time_kernel = runKernel32(1, layout, M, N, K, alpha, A_d, B_d, beta, C_d);
 
     auto gflops =  count_flops(M, N, K) / 1000000000.0;
     fs << "FLOP: " << gflops << " GFLOP" << std::endl;
-    fs << "Throughput: " << gflops / (time / 1e3) << " GFLOP/s" << std::endl;
+    fs << "Throughput: " << gflops / (time_kernel / 1e3) << " GFLOP/s" << std::endl;
+    fs << "Throughput cuBLAS: " << gflops / (time_cublas / 1e3) << " GFLOP/s" << std::endl;
+    fs << "Throughput (% of cuBLAS): " << time_cublas/time_kernel * 100.0 << "  %" << std::endl;
     fs << "Time: " <<  time << " ms" << std::endl;
 
     // Copy back result
@@ -63,16 +69,16 @@ int main() {
 
     float* C_cpu = new float[M * N];
     zero_init_matrix<float>(C_cpu, M * N);
-    runSgemmCpu(M, N, K, alpha, A, B, beta, C_cpu);
+    runSgemmCpu(layout, M, N, K, alpha, A, B, beta, C_cpu);
 
     if (print_matrices) {
         fs << "C: \n";
-        print_matrix<float>(C, M, N, fs);
+        print_matrix<float>(C, M, N, fs, layout);
         fs << "C CPU: \n";
-        print_matrix<float>(C_cpu, M, N, fs);
+        print_matrix<float>(C_cpu, M, N, fs, layout);
     }
 
-    auto error = compute_error_fro<float>(C, C_cpu, M, N);
+    auto error = compute_relative_error_fro<float>(C, C_cpu, M, N, layout);
 
     fs << "Error (Frobenius): " << error << std::endl;
 

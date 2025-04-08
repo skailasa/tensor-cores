@@ -1,5 +1,7 @@
 # Tensor Core Experiments
 
+Assume column major inputs, to match those expected by cuBLAS.
+
 ## Contents
 
 -  `example` - ...

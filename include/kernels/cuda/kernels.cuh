@@ -1,3 +1,3 @@
 #include <cuda_runtime.h>
-#include "naive.cu"
+#include "1_naive.cu"
 #include "global_mem_coalescing.cu"
