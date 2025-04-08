@@ -1,119 +1,128 @@
-/// GEMM D = \alpha A @ B + \beta * C
-#include <string>
-#include <iostream> // Ensure this header is included
-
-#ifdef AMD
-#include <hip/hip_runtime.h>
-#include "gemm_hip.hpp"
-#endif
+#include <stdexcept>
+#include <utils.hpp>
+#include <kernels.hpp>
 
 #ifdef NVIDIA
 #include <cuda_runtime.h>
-#include "gemm_cuda.hpp"
 #include <cublas.h>
 #include <cutensor.h>
 #endif
 
 
-void dgemm(int kernel_id, int M, int N, int K, double alpha, double *A, double *B, double beta, double *C,
-                      dim3 grid, dim3 block, bool timed) {
-
-#ifdef AMD
-    printf("Running on AMD GPU \n");
-#endif
-
-#ifdef NVIDIA
-    printf("Running on NVIDIA GPU \n");
-    cublasHandle_t handle;
-    cublasStatus_t status = cublasCreate_v2(&handle);
-
-    float milliseconds;
-    std::string id;
-    switch (kernel_id) {
-    case 0:
-        milliseconds = run_kernel_with_optional_timing([ = ]() {
-            dgemm_simple<<<grid, block>>>(M, N, K, alpha, A, B, beta, C);
-        }, timed);
-
-        id = "(0) Naive kernel";
-    break;
-    case 1:
-        milliseconds = run_kernel_with_optional_timing([ = ]() {
-            dgemm_gmem_coalesced<8><<<grid, block>>>(M, N, K, alpha, A, B, beta, C);
-        }, timed);
-        id = "(1) Global Memory Coalescing Kernel";
-        break;
-    case 2:
-        milliseconds = run_kernel_with_optional_timing([ = ]() {
-            dgemm_wmma<<<grid, block>>>(M, N, K, alpha, A, B, beta, C);
-        }, timed);
-
-        id = "(2) Simple WMMA kernel, Adjustable Warp Per Block";
-    break;
-    default:
-        milliseconds = 0.0;
-    break;
-    }
-
-    std::cout << "Kernel ID: " << id << std::endl;
-    std::cout << "Kernel execution time: " << milliseconds << " ms" << std::endl;
-    auto flops = count_flops_gemm(M, N, K);
-    auto [read, write] = count_memory_gemm<float>(M, N, K);
-    double gflops = (double) flops / 1e9; // Convert to GFLOPs
-
-    printf("FLOPs: %f GFLOPs \n", gflops);
-    printf("Reads: %f MB \n", static_cast<double>(read) / (double)(1024 * 1024));
-    printf("Writes: %f MB \n", static_cast<double>(write) / (double)(1024 * 1024));
-    printf("Throughput: %f GFLOPS \n", gflops /( milliseconds / 1000));
-    printf("Throughput: %f GB/s \n", (static_cast<double>(read) / (double(1024 * 1024 * 1024))) /( milliseconds / 1000));
-
-#endif
+/// @brief  Call cubLAS with single precision inputs
+void runCublasF32(cublasHandle_t handle, int M, int N, int K, float alpha, float *A, float *B, float beta, float*C) {
+    cublasGemmEx(handle, CUBLAS_OP_N, CUBLAS_OP_N, N, M, K, &alpha, B, CUDA_R_32F,
+        N, A, CUDA_R_32F, K, &beta, C, CUDA_R_32F, N, CUBLAS_COMPUTE_32F, CUBLAS_GEMM_DEFAULT);
 }
 
-void sgemm(int kernel_id, int M, int N, int K, float alpha, const float *A, const float *B, float beta, float *C,
-           dim3 grid, dim3 block, bool timed) {
-#ifdef AMD
-    printf("Running on AMD GPU \n");
-#endif
 
-#ifdef NVIDIA
-    printf("Running on NVIDIA GPU \n");
-    cublasHandle_t handle;
-    cublasStatus_t status = cublasCreate_v2(&handle);
+/// @brief  Call cubLAS with single precision inputs casted down to BF16 for the actual mul
+void runCublasB16(cublasHandle_t handle, int M, int N, int K, float alpha, float *A, float *B, float beta, float*C) {
+    // CUBLAS uses col-major by default, we use row-major by default
+    // TODO: configure to handle both (B^T A^T)^T = A B
+    cublasGemmEx(handle, CUBLAS_OP_N, CUBLAS_OP_N, N, M, K, &alpha, B, CUDA_R_32F,
+        N, A, CUDA_R_32F, K, &beta, C, CUDA_R_32F, N, CUBLAS_COMPUTE_32F_FAST_16BF, CUBLAS_GEMM_DEFAULT);
+}
 
-    float milliseconds;
-    std::string id;
-    switch (kernel_id) {
-    case 0:
-        milliseconds = run_kernel_with_optional_timing([ = ]() {
-            sgemm_simple<<<grid, block>>>(M, N, K, alpha, A, B, beta, C);
-        }, timed);
+/// @brief  Call cubLAS with single precision inputs casted to TF32 for the actual mul
+void runCublasT32(cublasHandle_t handle, int M, int N, int K, float alpha, float *A, float *B, float beta, float*C) {
+    // CUBLAS uses col-major by default, we use row-major by default
+    // TODO: configure to handle both (B^T A^T)^T = A B
+    cublasGemmEx(handle, CUBLAS_OP_N, CUBLAS_OP_N, N, M, K, &alpha, B, CUDA_R_32F,
+        N, A, CUDA_R_32F, K, &beta, C, CUDA_R_32F, N, CUBLAS_COMPUTE_32F_FAST_TF32, CUBLAS_GEMM_DEFAULT);
+}
 
-        id = "(0) Naive kernel";
+/// @brief  Call cubLAS with single precision inputs casted down to F16 for the actual mul
+void runCublasF16(cublasHandle_t handle, int M, int N, int K, float alpha, float *A, float *B, float beta, float*C) {
+    // CUBLAS uses col-major by default, we use row-major by default
+    // TODO: configure to handle both (B^T A^T)^T = A B
+    cublasGemmEx(handle, CUBLAS_OP_N, CUBLAS_OP_N, N, M, K, &alpha, B, CUDA_R_32F,
+        N, A, CUDA_R_32F, K, &beta, C, CUDA_R_32F, N, CUBLAS_COMPUTE_32F_FAST_16F, CUBLAS_GEMM_DEFAULT);
+}
+
+void runSgemmCpu(int M, int N, int K, float alpha, float *A, float *B, float beta, float *C) {
+
+    // Perform matrix multiplication
+    for (int i = 0; i < M; i++) {         // Iterate over rows of A and C
+        for (int j = 0; j < N; j++) {     // Iterate over columns of B and C
+            for (int k = 0; k < K; k++) { // Sum over the inner K-dimension
+                C[i * N + j] += A[i * K + k] * B[k * N + j];
+            }
+        }
+    }
+}
+
+void runSGemmNaive(int M, int N, int K, float alpha, float *A, float *B, float beta, float *C) {
+    dim3 gridDim(ceil_div(M, 32), ceil_div(N, 32));
+    dim3 blockDim(32, 32);
+    sgemm_naive<<<gridDim, blockDim>>>(M, N, K, alpha, A, B, beta, C);
+}
+
+void runSgemmGmemCoalescing(int M, int N, int K, float alpha, float *A, float *B, float beta, float *C) {
+    dim3 gridDim(ceil_div(M, 32), ceil_div(N, 32));
+    dim3 blockDim(32 * 32);
+    const uint BLOCKSIZE = 32;
+    sgemm_gmem_coalescing<BLOCKSIZE><<<gridDim, blockDim>>>(M, N, K, alpha, A, B, beta, C);
+}
+
+
+float runKernel32(int kernel_number, int M, int N, int K, float alpha, float *A, float *B, float beta, float *C) {
+
+    cublasStatus_t status; // cuBLAS functions status
+    cublasHandle_t handle; // cublas context
+    status = cublasCreate_v2(&handle); // initialize CUBLAS context
+    float time;
+
+    switch (kernel_number) {
+
+        // Default cuBLAS call in single precision
+        case 0:
+            time = run_kernel_with_optional_timing( [ = ]()  {
+                runCublasF32(handle, M, N, K, alpha, A, B, beta, C);
+            }, true);
+
+            return time;
         break;
-    case 1:
-        milliseconds = run_kernel_with_optional_timing([ = ]() {
-            sgemm_gmem_coalesced<32><<<grid, block>>>(M, N, K, alpha, A, B, beta, C);
-        }, timed);
-        id = "(1) Global Memory Coalescing Kernel";
+
+        // brain float precision cublas call
+        case 1:
+            time = run_kernel_with_optional_timing( [ = ]()  {
+                runCublasB16(handle, M, N, K, alpha, A, B, beta, C);
+            }, true);
         break;
-    default:
-        milliseconds = 0.0;
+
+        // tensor float precision cublas call
+        case 2:
+            time = run_kernel_with_optional_timing( [ = ]()  {
+                runCublasT32(handle, M, N, K, alpha, A, B, beta, C);
+            }, true);
         break;
+
+        // half precision cublas call
+        case 3:
+            time = run_kernel_with_optional_timing( [ = ]()  {
+                runCublasF16(handle, M, N, K, alpha, A, B, beta, C);
+            }, true);
+        break;
+
+        // single precision cublas call
+        case 4:
+            time = run_kernel_with_optional_timing( [ = ]()  {
+                runSGemmNaive(M, N, K, alpha, A, B, beta, C);
+            }, true);
+
+        break;
+
+        // shared memory coalesced reads
+        case 5:
+            time = run_kernel_with_optional_timing( [ = ]() {
+                runSgemmGmemCoalescing(M, N, K, alpha, A, B, beta, C);
+            }, true);
+        break;
+
+        default:
+            throw std::invalid_argument("Unknown kernel number");
     }
 
-    std::cout << "Kernel ID: " << id << std::endl;
-    std::cout << "Kernel execution time: " << milliseconds << " ms" << std::endl;
-    auto flops = count_flops_gemm(M, N, K);
-    auto [read, write] = count_memory_gemm<float>(M, N, K);
-    double gflops = (double) flops / 1e9; // Convert to GFLOPs
-
-
-    printf("FLOPs: %f GFLOPs \n", gflops);
-    printf("Reads: %f MB \n", static_cast<double>(read) / (double)(1024 * 1024));
-    printf("Writes: %f MB \n", static_cast<double>(write) / (double)(1024 * 1024));
-    printf("Throughput: %f GFLOPS \n", gflops /( milliseconds / 1000));
-    printf("Throughput: %f GB/s \n", (static_cast<double>(read) / (double(1024 * 1024 * 1024))) /( milliseconds / 1000));
-
-#endif
+    return time;
 }
