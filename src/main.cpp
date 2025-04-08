@@ -53,14 +53,15 @@ int main() {
     // Perform GEMM
 
     auto time_cublas = runKernel32(0, layout, M, N, K, alpha, A_d, B_d, beta, C_d);
-    auto time_kernel = runKernel32(1, layout, M, N, K, alpha, A_d, B_d, beta, C_d);
+    auto time_kernel = runKernel32(2, layout, M, N, K, alpha, A_d, B_d, beta, C_d);
 
     auto gflops =  count_flops(M, N, K) / 1000000000.0;
     fs << "FLOP: " << gflops << " GFLOP" << std::endl;
     fs << "Throughput: " << gflops / (time_kernel / 1e3) << " GFLOP/s" << std::endl;
     fs << "Throughput cuBLAS: " << gflops / (time_cublas / 1e3) << " GFLOP/s" << std::endl;
     fs << "Throughput (% of cuBLAS): " << time_cublas/time_kernel * 100.0 << "  %" << std::endl;
-    fs << "Time: " <<  time << " ms" << std::endl;
+    fs << "Time (kernel): " <<  time_kernel << " ms" << std::endl;
+    fs << "Time (cuBLAS): " <<  time_cublas << " ms" << std::endl;
 
     // Copy back result
     CUDA_CHECK(cudaMemcpy(A, A_d, (M * K) * sizeof(float), cudaMemcpyDeviceToHost));

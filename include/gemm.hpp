@@ -20,29 +20,29 @@ void runCublasF32(cublasHandle_t handle, Layout layout, int M, int N, int K, flo
 }
 
 
-/// @brief  Call cubLAS with single precision inputs casted down to BF16 for the actual mul
-void runCublasB16(cublasHandle_t handle, int M, int N, int K, float alpha, float *A, float *B, float beta, float*C) {
-    // CUBLAS uses col-major by default, we use row-major by default
-    // TODO: configure to handle both (B^T A^T)^T = A B
-    cublasGemmEx(handle, CUBLAS_OP_N, CUBLAS_OP_N, N, M, K, &alpha, B, CUDA_R_32F,
-        N, A, CUDA_R_32F, K, &beta, C, CUDA_R_32F, N, CUBLAS_COMPUTE_32F_FAST_16BF, CUBLAS_GEMM_DEFAULT);
-}
+// /// @brief  Call cubLAS with single precision inputs casted down to BF16 for the actual mul
+// void runCublasB16(cublasHandle_t handle, int M, int N, int K, float alpha, float *A, float *B, float beta, float*C) {
+//     // CUBLAS uses col-major by default, we use row-major by default
+//     // TODO: configure to handle both (B^T A^T)^T = A B
+//     cublasGemmEx(handle, CUBLAS_OP_N, CUBLAS_OP_N, N, M, K, &alpha, B, CUDA_R_32F,
+//         N, A, CUDA_R_32F, K, &beta, C, CUDA_R_32F, N, CUBLAS_COMPUTE_32F_FAST_16BF, CUBLAS_GEMM_DEFAULT);
+// }
 
-/// @brief  Call cubLAS with single precision inputs casted to TF32 for the actual mul
-void runCublasT32(cublasHandle_t handle, int M, int N, int K, float alpha, float *A, float *B, float beta, float*C) {
-    // CUBLAS uses col-major by default, we use row-major by default
-    // TODO: configure to handle both (B^T A^T)^T = A B
-    cublasGemmEx(handle, CUBLAS_OP_N, CUBLAS_OP_N, N, M, K, &alpha, B, CUDA_R_32F,
-        N, A, CUDA_R_32F, K, &beta, C, CUDA_R_32F, N, CUBLAS_COMPUTE_32F_FAST_TF32, CUBLAS_GEMM_DEFAULT);
-}
+// /// @brief  Call cubLAS with single precision inputs casted to TF32 for the actual mul
+// void runCublasT32(cublasHandle_t handle, int M, int N, int K, float alpha, float *A, float *B, float beta, float*C) {
+//     // CUBLAS uses col-major by default, we use row-major by default
+//     // TODO: configure to handle both (B^T A^T)^T = A B
+//     cublasGemmEx(handle, CUBLAS_OP_N, CUBLAS_OP_N, N, M, K, &alpha, B, CUDA_R_32F,
+//         N, A, CUDA_R_32F, K, &beta, C, CUDA_R_32F, N, CUBLAS_COMPUTE_32F_FAST_TF32, CUBLAS_GEMM_DEFAULT);
+// }
 
-/// @brief  Call cubLAS with single precision inputs casted down to F16 for the actual mul
-void runCublasF16(cublasHandle_t handle, int M, int N, int K, float alpha, float *A, float *B, float beta, float*C) {
-    // CUBLAS uses col-major by default, we use row-major by default
-    // TODO: configure to handle both (B^T A^T)^T = A B
-    cublasGemmEx(handle, CUBLAS_OP_N, CUBLAS_OP_N, N, M, K, &alpha, B, CUDA_R_32F,
-        N, A, CUDA_R_32F, K, &beta, C, CUDA_R_32F, N, CUBLAS_COMPUTE_32F_FAST_16F, CUBLAS_GEMM_DEFAULT);
-}
+// /// @brief  Call cubLAS with single precision inputs casted down to F16 for the actual mul
+// void runCublasF16(cublasHandle_t handle, int M, int N, int K, float alpha, float *A, float *B, float beta, float*C) {
+//     // CUBLAS uses col-major by default, we use row-major by default
+//     // TODO: configure to handle both (B^T A^T)^T = A B
+//     cublasGemmEx(handle, CUBLAS_OP_N, CUBLAS_OP_N, N, M, K, &alpha, B, CUDA_R_32F,
+//         N, A, CUDA_R_32F, K, &beta, C, CUDA_R_32F, N, CUBLAS_COMPUTE_32F_FAST_16F, CUBLAS_GEMM_DEFAULT);
+// }
 
 void runSgemmCpu(Layout layout, int M, int N, int K, float alpha, float *A, float *B, float beta, float *C) {
 
@@ -84,11 +84,17 @@ void runSGemmNaive(Layout layout, int M, int N, int K, float alpha, float *A, fl
 }
 
 
-void runSgemmGmemCoalescing(int M, int N, int K, float alpha, float *A, float *B, float beta, float *C) {
-    dim3 gridDim(ceil_div(M, 32), ceil_div(N, 32));
-    dim3 blockDim(32 * 32);
-    const uint BLOCKSIZE = 32;
-    sgemm_gmem_coalescing<BLOCKSIZE><<<gridDim, blockDim>>>(M, N, K, alpha, A, B, beta, C);
+void runSgemmSharedMemCacheBlocking(Layout layout, int M, int N, int K, float alpha, float *A, float *B, float beta, float *C) {
+    const uint BLOCKSIZE = 64;
+    dim3 blockDim(BLOCKSIZE, BLOCKSIZE);
+    dim3 gridDim(ceil_div(M, BLOCKSIZE), ceil_div(N, BLOCKSIZE));
+
+    if (layout == Layout::RowMajor) {
+        sgemm_smem_cache_blocking_row_major<BLOCKSIZE><<<gridDim, blockDim>>>(M, N, K, alpha, A, B, beta, C);
+    } else if (layout == Layout::ColumnMajor) {
+        sgemm_smem_cache_blocking_column_major<BLOCKSIZE><<<gridDim, blockDim>>>(M, N, K, alpha, A, B, beta, C);
+
+    }
 }
 
 
@@ -114,42 +120,22 @@ float runKernel32(int kernel_number, Layout layout, int M, int N, int K, float a
 
         // single naive kernel
         case 1:
-            runSGemmNaive(layout, M, N, K, alpha, A, B, beta, C);
+            // Warmup call
             time = run_kernel_with_optional_timing( [ = ]()  {
                 runSGemmNaive(layout, M, N, K, alpha, A, B, beta, C);
             }, true);
 
         break;
 
-        // // brain float precision cublas call
-        // case 1:
-        //     time = run_kernel_with_optional_timing( [ = ]()  {
-        //         runCublasB16(handle, M, N, K, alpha, A, B, beta, C);
-        //     }, true);
-        // break;
+        // single naive kernel
+        case 2:
+            // Warmup call
+            time = run_kernel_with_optional_timing( [ = ]()  {
+                runSgemmSharedMemCacheBlocking(layout, M, N, K, alpha, A, B, beta, C);
+            }, true);
 
-        // // tensor float precision cublas call
-        // case 2:
-        //     time = run_kernel_with_optional_timing( [ = ]()  {
-        //         runCublasT32(handle, M, N, K, alpha, A, B, beta, C);
-        //     }, true);
-        // break;
+        break;
 
-        // // half precision cublas call
-        // case 3:
-        //     time = run_kernel_with_optional_timing( [ = ]()  {
-        //         runCublasF16(handle, M, N, K, alpha, A, B, beta, C);
-        //     }, true);
-        // break;
-
-
-
-        // // shared memory coalesced reads
-        // case 1:
-        //     time = run_kernel_with_optional_timing( [ = ]() {
-        //         runSgemmGmemCoalescing(M, N, K, alpha, A, B, beta, C);
-        //     }, true);
-        // break;
 
         default:
             throw std::invalid_argument("Unknown kernel number");
