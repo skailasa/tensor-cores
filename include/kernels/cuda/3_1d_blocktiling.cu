@@ -8,6 +8,7 @@ __global__ void sgemm_smem_1d_blocktiling_row_major(
     __shared__ float Bs[BK][BN];
 
     // Each thread computes TM values in the output
+    // This is stored in registers
     float threadResults[TM] = {0.0f};
 
     int threadId = threadIdx.x;
@@ -75,6 +76,7 @@ __global__ void sgemm_smem_1d_blocktiling_row_major(
     }
 
 }
+
 
 template <const int BM, const int BN, const int BK, const int TM>
 __global__ void sgemm_smem_1d_blocktiling_column_major(int M, int N, int K, float alpha, const float *A,

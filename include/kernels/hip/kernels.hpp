@@ -1,0 +1,1 @@
+#include <hip_runtime.h>

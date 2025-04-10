@@ -17,10 +17,10 @@ Constant Memory                  : 64 KB
 ---------------------------------------------
 Performance Metrics
 -------------------
-FLOP: 0.268435 GFLOP
-Throughput: 0.873275 GFLOP/s
-Throughput cuBLAS: 0.738505 GFLOP/s
-Throughput (% of cuBLAS): 118.249  %
-Time (kernel): 307.389 ms
-Time (cuBLAS): 363.485 ms
-Relative Error wrt CPU (Frobenius): 2.01743e-07
+FLOP: 2.14748 GFLOP
+Throughput: 5.35511 GFLOP/s
+Throughput cuBLAS: 4.6309 GFLOP/s
+Throughput (% of cuBLAS): 115.639  %
+Time (kernel): 401.016 ms
+Time (cuBLAS): 463.73 ms
+Relative Error wrt CPU (Frobenius): 2.38493e-07

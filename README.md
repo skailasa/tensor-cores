@@ -9,6 +9,21 @@ Assume column major inputs, to match those expected by cuBLAS.
 
 #### **NVidia Workstation**
 
+RTX 6000 Ada Generation Data Sheet
+
+- Ada Lovelace Architecture AD102
+- 18,176 CUDA cores
+- 568 Tensor Cores
+- 2.5 GHz
+- FP32 91.1 TFLOP/s
+- TF32 ~ 362.6 TFLOP/s (2x with sparsity)
+- FP16/BF16 ~ 725.3 TFLOP/s (with sparsity 2:4 structured)
+
+-  The "with sparsity" numbers refer to 2:4 structured sparsity, where 50% of operands are zero and optimized by hardware.
+- If you're not explicitly using sparse data + sparse kernels, you're hitting ~362 TFLOP/s for TF32 and ~362 TFLOP/s for FP16/BF16.
+
+Note the data sheet reports performance for all cores/tensor cores running every cycle with no bank conflicts, shared memory stalls or launch overheads.
+
 
 
 #### *LUMI**

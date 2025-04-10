@@ -3,6 +3,9 @@
 #include <iomanip>
 #include <iostream>
 
+#define PRINT_FUNC_NAME(func) std::cout << #func << std::endl;
+
+
 constexpr int ceil_div(int numerator, int denominator) {
     return (numerator + denominator - 1) / denominator;
 }
@@ -117,6 +120,7 @@ double compute_relative_error_fro(const T* A, const T* B, int M, int N, Layout l
 
 template <typename KernelCallable>
 float run_kernel_with_optional_timing(KernelCallable kernel_call, bool timed = false) {
+
     if (timed) {
         // Create CUDA events for timing
         cudaEvent_t start, stop;

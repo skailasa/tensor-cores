@@ -1,17 +1,12 @@
-// #include <cstdlib>
-// #include <stdio.h>
-// #include <random>
-// #include <vector>
-// #include <iostream>
 #include <gemm.hpp>
 
 int main() {
 
     float alpha = 1.0;
     float beta = 0.0;
-    int M = 1024;
-    int K = 1024;
-    int N = 1024;
+    int M = 512;
+    int K = 512;
+    int N = 512;
 
     float* A = new float[M * K];
     zero_init_matrix<float>(A, M * K);
@@ -37,6 +32,7 @@ int main() {
     device_info(fs);
 
     bool print_matrices = false;
+    bool compute_error = false;
 
     if (print_matrices) {
         fs << "A:\n";
@@ -69,20 +65,23 @@ int main() {
     CUDA_CHECK(cudaMemcpy(B, B_d, (K * N) * sizeof(float), cudaMemcpyDeviceToHost));
     CUDA_CHECK(cudaMemcpy(C, C_d, (M * N) * sizeof(float), cudaMemcpyDeviceToHost));
 
-    float* C_cpu = new float[M * N];
-    zero_init_matrix<float>(C_cpu, M * N);
-    runSgemmCpu(layout, M, N, K, alpha, A, B, beta, C_cpu);
+    if (compute_error) {
+        float* C_cpu = new float[M * N];
+        zero_init_matrix<float>(C_cpu, M * N);
+        runSgemmCpu(layout, M, N, K, alpha, A, B, beta, C_cpu);
 
-    if (print_matrices) {
-        fs << "C: \n";
-        print_matrix<float>(C, M, N, fs, layout);
-        fs << "C CPU: \n";
-        print_matrix<float>(C_cpu, M, N, fs, layout);
+        if (print_matrices) {
+            fs << "C: \n";
+            print_matrix<float>(C, M, N, fs, layout);
+            fs << "C CPU: \n";
+            print_matrix<float>(C_cpu, M, N, fs, layout);
+        }
+
+        // Test
+        auto error = compute_relative_error_fro<float>(C, C_cpu, M, N, layout);
+        fs << "Relative Error wrt CPU (Frobenius): " << error << std::endl;
+        oss << "Relative Error wrt CPU (Frobeinus): " << error << std::endl;
     }
-
-    // Test
-    auto error = compute_relative_error_fro<float>(C, C_cpu, M, N, layout);
-    fs << "Relative Error wrt CPU (Frobenius): " << error << std::endl;
 
     // Free resources
     CUDA_CHECK(cudaFree(A_d));
