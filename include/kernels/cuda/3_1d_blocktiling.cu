@@ -19,9 +19,6 @@ __global__ void sgemm_smem_1d_blocktiling_row_major(
     // Need to still load As and Bs tiles into shared memory by looping along shared dimension
     for (int bk = 0; bk < K; bk += BK) {
 
-        float aVal = 0.0f;
-        float bVal = 0.0f;
-
         // Load As
 
         // Only threads with tid UP TO BM*BK will participate, so at worst one thread will be responsible for
