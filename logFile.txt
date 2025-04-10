@@ -1,0 +1,26 @@
+Device Info
+===========
+Device ID                        : 0
+Name                             : NVIDIA RTX 6000 Ada Generation
+Compute Capability               : 8.9
+Total Global Memory              : 48632 MB
+Memory Bus Width                 : 384 bits
+Multiprocessor Count (SMs)       : 142
+Max Threads per Block            : 1024
+Max Threads per Multiprocessor   : 1536
+Threads per Warp                 : 32
+Estimated Warps per SM           : 48
+Max Registers per Block              : 65536
+Max Shared Mem per Block         : 48 KB
+Shared Mem per Multiprocessor    : 100 KB
+Constant Memory                  : 64 KB
+---------------------------------------------
+Performance Metrics
+-------------------
+FLOP: 0.268435 GFLOP
+Throughput: 0.873275 GFLOP/s
+Throughput cuBLAS: 0.738505 GFLOP/s
+Throughput (% of cuBLAS): 118.249  %
+Time (kernel): 307.389 ms
+Time (cuBLAS): 363.485 ms
+Relative Error wrt CPU (Frobenius): 2.01743e-07

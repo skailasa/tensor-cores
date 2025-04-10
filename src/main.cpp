@@ -9,9 +9,9 @@ int main() {
 
     float alpha = 1.0;
     float beta = 0.0;
-    int M = 512;
-    int K = 512;
-    int N = 512;
+    int M = 1024;
+    int K = 1024;
+    int N = 1024;
 
     float* A = new float[M * K];
     zero_init_matrix<float>(A, M * K);
@@ -60,7 +60,7 @@ int main() {
 
     // Perform GEMM
     auto time_cublas = runKernel32(0, layout, cache_configuration, M, N, K, alpha, A_d, B_d, beta, C_d);
-    auto time_kernel = runKernel32(2, layout, cache_configuration, M, N, K, alpha, A_d, B_d, beta, C_d);
+    auto time_kernel = runKernel32(3, layout, cache_configuration, M, N, K, alpha, A_d, B_d, beta, C_d);
 
     auto gflops = performance_metrics(fs, M, N, K, time_kernel, time_cublas);
 

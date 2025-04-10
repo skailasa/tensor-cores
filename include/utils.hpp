@@ -149,6 +149,7 @@ float run_kernel_with_optional_timing(KernelCallable kernel_call, bool timed = f
     }
 }
 
+
 void device_info(std::ofstream& fs) {
     int device_id;
     cudaGetDevice(&device_id);
@@ -157,26 +158,29 @@ void device_info(std::ofstream& fs) {
     cudaGetDeviceProperties(&props, device_id);
 
     std::ostringstream oss;
+    oss << std::fixed << std::setprecision(2);
 
-    oss << "Device Info \n"
-        << "-------------- \n"
-        << "Device ID: " << device_id << "\n"
-        << "*Number of SMs: " << props.multiProcessorCount << "\n"
-        << "Compute Capability: " << props.major << "." << props.minor << "\n"
-        << "memoryBusWidth: " << props.memoryBusWidth << " bits\n"
-        << "*maxThreadsPerBlock: " << props.maxThreadsPerBlock << "\n"
-        << "maxThreadsPerMultiProcessor: " << props.maxThreadsPerMultiProcessor << "\n"
-        << "*totalGlobalMem: " << props.totalGlobalMem / (1024 * 1024) << " MB\n"
-        << "sharedMemPerBlock: " << props.sharedMemPerBlock / 1024 << " KB\n"
-        << "*sharedMemPerMultiprocessor: " << props.sharedMemPerMultiprocessor / 1024 << " KB\n"
-        << "totalConstMem: " << props.totalConstMem / 1024 << " KB\n"
-        << "*multiProcessorCount: " << props.multiProcessorCount << "\n"
-        << "*Warp Size: " << props.warpSize << "\n\n";
+    int warps_per_sm = props.maxThreadsPerMultiProcessor / props.warpSize;
 
-    // Print to stdout
+    oss << "Device Info\n"
+        << "===========\n"
+        << "Device ID                        : " << device_id << "\n"
+        << "Name                             : " << props.name << "\n"
+        << "Compute Capability               : " << props.major << "." << props.minor << "\n"
+        << "Total Global Memory              : " << props.totalGlobalMem / (1024 * 1024) << " MB\n"
+        << "Memory Bus Width                 : " << props.memoryBusWidth << " bits\n"
+        << "Multiprocessor Count (SMs)       : " << props.multiProcessorCount << "\n"
+        << "Max Threads per Block            : " << props.maxThreadsPerBlock << "\n"
+        << "Max Threads per Multiprocessor   : " << props.maxThreadsPerMultiProcessor << "\n"
+        << "Threads per Warp                 : " << props.warpSize << "\n"
+        << "Estimated Warps per SM           : " << warps_per_sm << "\n"
+        << "Max Registers per Block              : " << props.regsPerBlock << "\n"
+        << "Max Shared Mem per Block         : " << props.sharedMemPerBlock / 1024 << " KB\n"
+        << "Shared Mem per Multiprocessor    : " << props.sharedMemPerMultiprocessor / 1024 << " KB\n"
+        << "Constant Memory                  : " << props.totalConstMem / 1024 << " KB\n"
+        << "---------------------------------------------\n";
+
     std::cout << oss.str();
-
-    // Write to file
     fs << oss.str();
 }
 

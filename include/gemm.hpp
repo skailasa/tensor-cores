@@ -113,6 +113,27 @@ void runSgemmSharedMemCacheBlocking(Layout layout, cudaFuncCache cache_configura
     }
 }
 
+void runSgemm1dBlockTiling(Layout layout, cudaFuncCache cache_configuration, int M, int N, int K, float alpha, float *A, float *B, float beta, float *C) {
+
+    const uint BM = 64;
+    const uint BN = 64;
+    const uint BK = 8;
+    const uint TM = 8; // must be divisible by block sizes
+
+    if (layout == Layout::RowMajor) {
+        dim3 gridDim(ceil_div(M, BM), ceil_div(N, BN)); // same as in shared mem cache blocking, but with tunable parameters
+        dim3 blockDim((BM * BN)/TM); // each thread in block responsible for TM values of output
+        // and total output size of each block is still BN * BM
+        KernelPtr kernel = sgemm_smem_1d_blocktiling_row_major<BM, BN, BK, TM>;
+        cudaFuncSetCacheConfig(kernel, cache_configuration);
+        kernel<<<gridDim, blockDim>>>(M, N, K, alpha, A, B, beta, C);
+    } else if (layout == Layout::ColumnMajor) {
+        KernelPtr kernel = sgemm_smem_1d_blocktiling_column_major<BM, BN, BK, TM>;
+        cudaFuncSetCacheConfig(kernel, cache_configuration);
+        kernel(M, N, K, alpha, A, B, beta, C);
+    }
+}
+
 
 float runKernel32(int kernel_number, Layout layout, cudaFuncCache cache_configuration, int M, int N, int K, float alpha, float *A, float *B, float beta, float *C) {
 
@@ -144,12 +165,19 @@ float runKernel32(int kernel_number, Layout layout, cudaFuncCache cache_configur
 
     // single naive kernel
     case 2:
-        // Warmup call
         time = run_kernel_with_optional_timing( [ = ]()  {
             runSgemmSharedMemCacheBlocking(layout, cache_configuration, M, N, K, alpha, A, B, beta, C);
         }, true);
 
         break;
+
+    case 3:
+        time = run_kernel_with_optional_timing( [ = ]()  {
+            runSgemm1dBlockTiling(layout, cache_configuration, M, N, K, alpha, A, B, beta, C);
+        }, true);
+
+        break;
+
 
 
     default:
