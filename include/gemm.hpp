@@ -126,8 +126,8 @@ void runSgemm1dBlockTiling(Layout layout, cudaFuncCache cache_configuration, int
 
     const uint BM = 64;
     const uint BN = 64;
-    const uint BK = 8;
-    const uint TM = 8;
+    const uint BK = 16;
+    const uint TM = 16;
 
     static_assert(BM % TM == 0, "BM must be divisible by TM");
 
@@ -139,7 +139,7 @@ void runSgemm1dBlockTiling(Layout layout, cudaFuncCache cache_configuration, int
         cudaFuncSetCacheConfig(kernel, cache_configuration);
         kernel<<<gridDim, blockDim>>>(M, N, K, alpha, A, B, beta, C);
     } else if (layout == Layout::ColumnMajor) {
-        dim3 gridDim(ceil_div(N, BN), ceil_div(M, BM)); // same as in shared mem cache blocking, but with tunable parameters
+        dim3 gridDim(ceil_div(M, BM), ceil_div(N, BN)); // same as in shared mem cache blocking, but with tunable parameters
         dim3 blockDim((BM * BN)/TM); // each thread in block responsible for TM values of output
         KernelPtr kernel = sgemm_smem_1d_blocktiling_column_major<BM, BN, BK, TM>;
         cudaFuncSetCacheConfig(kernel, cache_configuration);
@@ -192,6 +192,7 @@ float runKernel32(int kernel_number, Layout layout, cudaFuncCache cache_configur
         return time;
         break;
 
+    // cuBLAS with TF32
     case 1:
         // Warmup call
         runCublasT32(handle, layout, M, N, K, alpha, A, B, beta, C);
@@ -202,6 +203,7 @@ float runKernel32(int kernel_number, Layout layout, cudaFuncCache cache_configur
         return time;
         break;
 
+    // cuBLAS with BF16
     case 2:
         // Warmup call
         runCublasB16(handle, layout, M, N, K, alpha, A, B, beta, C);
@@ -212,6 +214,7 @@ float runKernel32(int kernel_number, Layout layout, cudaFuncCache cache_configur
         return time;
         break;
 
+    // cuBLAS with half precision
     case 3:
         // Warmup call
         runCublasF16(handle, layout, M, N, K, alpha, A, B, beta, C);

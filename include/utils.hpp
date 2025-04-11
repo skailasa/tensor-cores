@@ -178,7 +178,7 @@ void device_info(std::ofstream& fs) {
         << "Max Threads per Multiprocessor   : " << props.maxThreadsPerMultiProcessor << "\n"
         << "Threads per Warp                 : " << props.warpSize << "\n"
         << "Estimated Warps per SM           : " << warps_per_sm << "\n"
-        << "Max Registers per Block              : " << props.regsPerBlock << "\n"
+        << "Max Registers per Block          : " << props.regsPerBlock << "\n"
         << "Max Shared Mem per Block         : " << props.sharedMemPerBlock / 1024 << " KB\n"
         << "Shared Mem per Multiprocessor    : " << props.sharedMemPerMultiprocessor / 1024 << " KB\n"
         << "Constant Memory                  : " << props.totalConstMem / 1024 << " KB\n"
