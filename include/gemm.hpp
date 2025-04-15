@@ -127,7 +127,7 @@ void runSgemm1dBlockTiling(Layout layout, cudaFuncCache cache_configuration, int
     const uint BM = 64;
     const uint BN = 64;
     const uint BK = 16;
-    const uint TM = 16;
+    const uint TM = 4;
 
     static_assert(BM % TM == 0, "BM must be divisible by TM");
 
@@ -152,22 +152,23 @@ void runSgemm2dBlockTiling(Layout layout, cudaFuncCache cache_configuration, int
 
     const uint BM = 64;
     const uint BN = 64;
-    const uint BK = 8;
-    const uint TM = 8;
-    const uint TN = 8;
+    const uint BK = 16;
+    const uint TM = 4;
+    const uint TN = 4;
     static_assert((BM % TM == 0) && (BN % TN == 0), "BM must be divisible by TM and BN must be divisible by TN");
 
     if (layout == Layout::RowMajor) {
         dim3 gridDim(ceil_div(M, BM), ceil_div(N, BN)); // same as in shared mem cache blocking, but with tunable parameters
+        dim3 blockDim((BM * BN) / ((TM * TN)));
         KernelPtr kernel = sgemm_smem_2d_blocktiling_row_major<BM, BN, BK, TM, TN>;
         cudaFuncSetCacheConfig(kernel, cache_configuration);
-        kernel(M, N, K, alpha, A, B, beta, C);
+        kernel<<<gridDim, blockDim>>>(M, N, K, alpha, A, B, beta, C);
 
     } else if (layout == Layout::ColumnMajor) {
-        dim3 gridDim(ceil_div(N, BN), ceil_div(M, BM)); // same as in shared mem cache blocking, but with tunable parameters
-        KernelPtr kernel = sgemm_smem_2d_blocktiling_column_major<BM, BN, BK, TM, TN>;
-        cudaFuncSetCacheConfig(kernel, cache_configuration);
-        kernel(M, N, K, alpha, A, B, beta, C);
+        // dim3 gridDim(ceil_div(N, BN), ceil_div(M, BM)); // same as in shared mem cache blocking, but with tunable parameters
+        // KernelPtr kernel = sgemm_smem_2d_blocktiling_column_major<BM, BN, BK, TM, TN>;
+        // cudaFuncSetCacheConfig(kernel, cache_configuration);
+        // kernel<<(M, N, K, alpha, A, B, beta, C);
     }
 
 }
@@ -252,6 +253,13 @@ float runKernel32(int kernel_number, Layout layout, cudaFuncCache cache_configur
     case 9:
         time = run_kernel_with_optional_timing( [ = ]()  {
             runSgemm1dBlockTiling(layout, cache_configuration, M, N, K, alpha, A, B, beta, C);
+        }, true);
+
+        break;
+
+    case 10:
+        time = run_kernel_with_optional_timing( [ = ]()  {
+            runSgemm2dBlockTiling(layout, cache_configuration, M, N, K, alpha, A, B, beta, C);
         }, true);
 
         break;
