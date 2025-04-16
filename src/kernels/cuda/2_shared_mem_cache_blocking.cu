@@ -1,3 +1,4 @@
+#include "kernels.hpp"
 
 
 template <const int BLOCKSIZE>
@@ -105,3 +106,9 @@ __global__ void sgemm_smem_cache_blocking_column_major(int M, int N, int K, floa
         C[globalCol * M + globalRow] = alpha * tmp + beta * C[globalCol * M + globalRow];
 
 }
+
+template __global__ void sgemm_smem_cache_blocking_row_major<32>(
+    int, int, int, float, const float*, const float*, float, float*);
+
+template __global__ void sgemm_smem_cache_blocking_column_major<32>(
+    int, int, int, float, const float*, const float*, float, float*);

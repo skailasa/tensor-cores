@@ -1,3 +1,5 @@
+#include "kernels.hpp"
+
 template <const int BM, const int BN, const int BK, const int TM>
 __global__ void sgemm_smem_1d_blocktiling_row_major(
     int M, int N, int K, float alpha, const float *A,
@@ -154,3 +156,6 @@ __global__ void sgemm_smem_1d_blocktiling_column_major(int M, int N, int K, floa
             C[globalRow + globalCol * M] = alpha * threadResults[resIdx] + beta *  C[globalRow + globalCol * M];
         }
 }
+
+template __global__ void sgemm_smem_1d_blocktiling_row_major<64, 64, 16, 4>(int, int, int, float, const float*, const float*, float, float*);
+template __global__ void sgemm_smem_1d_blocktiling_column_major<64, 64, 16, 4>(int, int, int, float, const float*, const float*, float, float*);

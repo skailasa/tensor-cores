@@ -1,4 +1,4 @@
-
+#include "kernels.hpp"
 
 /// @brief  Simplest GEMM kernel, each thread is responsible for an entry in the output matrix. Expect matrix data in
 /// row major order

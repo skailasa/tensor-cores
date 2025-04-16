@@ -1,12 +1,19 @@
+#ifdef NVIDIA
+#include <gemm.cuh>
+#include <cuda_utils.hpp>
+#include <cuda_runtime.h>
+#endif
+
+#include <utils.hpp>
 #include <gemm.hpp>
 
 int main() {
 
     float alpha = 1.0;
     float beta = 0.0;
-    int M = 1024;
-    int K = 1024;
-    int N = 1024;
+    int M = 4096;
+    int K = 4096;
+    int N = 4096;
 
     float* A = new float[M * K];
     zero_init_matrix<float>(A, M * K);
@@ -28,7 +35,6 @@ int main() {
         << "Data Ordering: " << ordering_to_string(layout) << std::endl;
 
     // Print device properties
-    device_info(fs);
 
     bool print_matrices = false;
     bool compute_error = true;
@@ -41,6 +47,8 @@ int main() {
     }
 
 #ifdef NVIDIA
+
+    device_info(fs);
     float* C = new float[M * N];
     zero_init_matrix<float>(C, M * N);
 
@@ -55,9 +63,9 @@ int main() {
 
     // Perform GEMM
     auto time_cublas = runKernel32(0, layout, cache_configuration, M, N, K, alpha, A_d, B_d, beta, C_d);
-    auto time_kernel = runKernel32(10, layout, cache_configuration, M, N, K, alpha, A_d, B_d, beta, C_d);
+    auto time_kernel = runKernel32(9, layout, cache_configuration, M, N, K, alpha, A_d, B_d, beta, C_d);
 
-    auto gflops = performance_metrics(fs, M, N, K, time_kernel, time_cublas);
+    auto _gflops = performance_metrics(fs, M, N, K, time_kernel, time_cublas);
 
     // Copy back result
     CUDA_CHECK(cudaMemcpy(A, A_d, (M * K) * sizeof(float), cudaMemcpyDeviceToHost));

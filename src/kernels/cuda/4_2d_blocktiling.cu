@@ -1,3 +1,5 @@
+#include "kernels.hpp"
+
 // NOTE: We use flat 1D shared memory (As[BM * BK], Bs[BK * BN]) instead of 2D arrays (As[BM][BK])
 // to ensure correctness and predictable indexing across arbitrary tile sizes.
 //
@@ -96,3 +98,7 @@ __global__ void sgemm_smem_2d_blocktiling_column_major(
     int M, int N, int K, float alpha, const float *A,
     const float *B, float beta, float *C) {
 }
+
+
+template __global__ void sgemm_smem_2d_blocktiling_row_major<64, 64, 16, 4, 4>(int, int, int, float, const float*, const float*, float, float*);
+template __global__ void sgemm_smem_2d_blocktiling_column_major<64, 64, 16, 4, 4>(int, int, int, float, const float*, const float*, float, float*);
