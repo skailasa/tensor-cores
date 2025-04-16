@@ -16,9 +16,12 @@ double count_flops(int M, int N, int K) {
 
 std::string ordering_to_string(Layout layout) {
     switch (layout) {
-        case Layout::RowMajor: return "Row Major";
-        case Layout::ColumnMajor: return "Column Major";
-        default: return "Unknown Ordering";
+    case Layout::RowMajor:
+        return "Row Major";
+    case Layout::ColumnMajor:
+        return "Column Major";
+    default:
+        return "Unknown Ordering";
     }
 }
 

@@ -7,11 +7,16 @@
 
 std::string cache_config_to_string(cudaFuncCache config) {
     switch (config) {
-        case cudaFuncCachePreferNone: return "PreferNone";
-        case cudaFuncCachePreferShared: return "PreferShared";
-        case cudaFuncCachePreferL1: return "PreferL1";
-        case cudaFuncCachePreferEqual: return "PreferEqual";
-        default: return "Unknown Cache Config";
+    case cudaFuncCachePreferNone:
+        return "PreferNone";
+    case cudaFuncCachePreferShared:
+        return "PreferShared";
+    case cudaFuncCachePreferL1:
+        return "PreferL1";
+    case cudaFuncCachePreferEqual:
+        return "PreferEqual";
+    default:
+        return "Unknown Cache Config";
     }
 }
 

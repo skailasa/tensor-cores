@@ -3,7 +3,7 @@
 
 template <const int BLOCKSIZE>
 __global__ void sgemm_smem_cache_blocking_row_major(int M, int N, int K, float alpha, const float *A,
-                                      const float *B, float beta, float *C) {
+        const float *B, float beta, float *C) {
 
     // The inner (block wise) row and column we're accessing in this thread
     const uint localCol = threadIdx.x;
@@ -58,7 +58,7 @@ __global__ void sgemm_smem_cache_blocking_row_major(int M, int N, int K, float a
 
 template <const int BLOCKSIZE>
 __global__ void sgemm_smem_cache_blocking_column_major(int M, int N, int K, float alpha, const float *A,
-                                      const float *B, float beta, float *C) {
+        const float *B, float beta, float *C) {
 
 
     // The inner (block wise) row and column we're accessing in this thread

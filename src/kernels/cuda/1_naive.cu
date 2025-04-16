@@ -12,7 +12,7 @@
 /// @param C
 /// @return
 __global__ void sgemm_naive_row_major(int M, int N, int K, float alpha, const float *A,
-                            const float *B, float beta, float *C) {
+                                      const float *B, float beta, float *C) {
 
     // Thread indices within each block
     const uint col = blockDim.x * blockIdx.x + threadIdx.x;
@@ -45,7 +45,7 @@ __global__ void sgemm_naive_row_major(int M, int N, int K, float alpha, const fl
 /// @param C
 /// @return
 __global__ void sgemm_naive_column_major(int M, int N, int K, float alpha, const float *A,
-    const float *B, float beta, float *C) {
+        const float *B, float beta, float *C) {
 
     // Thread indices within each block
     const uint col = blockDim.x * blockIdx.x + threadIdx.x;

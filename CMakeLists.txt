@@ -293,6 +293,14 @@ if(NVIDIA)
   target_include_directories(cuda_kernels PRIVATE ${CMAKE_SOURCE_DIR}/include)
 endif()
 
+
+add_custom_target(format
+    COMMAND astyle --style=google --suffix=none ${CPP_SOURCES} ${CU_SOURCES}
+    COMMENT "Formatting source files with astyle"
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+
+
 # Executable and linkage
 add_executable(${PROJECT_NAME}
   ${CPP_SOURCES}
@@ -301,10 +309,6 @@ add_executable(${PROJECT_NAME}
 target_include_directories(${PROJECT_NAME} PRIVATE include)
 
 if(NVIDIA)
-  # target_link_libraries(${PROJECT_NAME}
-  #   CUDA::cublas
-  #   ${CUTENSOR_LIBRARIES}
-  # )
 
   target_link_libraries(${PROJECT_NAME}
   PRIVATE
@@ -314,7 +318,7 @@ if(NVIDIA)
     ${CUTENSOR_LIBRARIES}
 )
 
-  target_compile_definitions(${PROJECT_NAME} PRIVATE USE_CUDA=1)
+target_compile_definitions(${PROJECT_NAME} PRIVATE USE_CUDA=1)
 elseif(AMD)
   target_link_libraries(${PROJECT_NAME}
     roc::rocthrust
