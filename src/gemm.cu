@@ -125,7 +125,7 @@ void runSgemm2dBlockTiling(Layout layout, cudaFuncCache cache_configuration, int
 
     const uint BM = 64;
     const uint BN = 64;
-    const uint BK = 16;
+    const uint BK = 64;
     const uint TM = 4;
     const uint TN = 4;
     static_assert((BM % TM == 0) && (BN % TN == 0), "BM must be divisible by TM and BN must be divisible by TN");
@@ -143,7 +143,6 @@ void runSgemm2dBlockTiling(Layout layout, cudaFuncCache cache_configuration, int
         // cudaFuncSetCacheConfig(kernel, cache_configuration);
         // kernel<<(M, N, K, alpha, A, B, beta, C);
     }
-
 }
 
 

@@ -1,3 +1,5 @@
+#include "Config.h"
+
 #ifdef NVIDIA
 #include "kernels/cuda/kernels.cuh"
 #endif

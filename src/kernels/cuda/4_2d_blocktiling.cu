@@ -101,4 +101,6 @@ __global__ void sgemm_smem_2d_blocktiling_column_major(
 
 
 template __global__ void sgemm_smem_2d_blocktiling_row_major<64, 64, 16, 4, 4>(int, int, int, float, const float*, const float*, float, float*);
+template __global__ void sgemm_smem_2d_blocktiling_row_major<64, 64, 32, 4, 4>(int, int, int, float, const float*, const float*, float, float*);
+template __global__ void sgemm_smem_2d_blocktiling_row_major<64, 64, 64, 4, 4>(int, int, int, float, const float*, const float*, float, float*);
 template __global__ void sgemm_smem_2d_blocktiling_column_major<64, 64, 16, 4, 4>(int, int, int, float, const float*, const float*, float, float*);
