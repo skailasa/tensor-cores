@@ -18,6 +18,8 @@ function(import_spack_library pkg_name target_name)
   set(INCLUDE_DIR "${PKG_PATH}/include")
 
   add_library(${target_name} SHARED IMPORTED)
+
+  # Setting properties for a library that I'm not building, but CMake is fetching
   set_target_properties(${target_name} PROPERTIES
   IMPORTED_LOCATION ${LIBRARY}
   INTERFACE_INCLUDE_DIRECTORIES ${INCLUDE_DIR}
