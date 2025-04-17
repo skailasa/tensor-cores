@@ -6,6 +6,25 @@ function(find_spack_package name out_path)
   set(${out_path} "${_path}" PARENT_SCOPE)
 endfunction()
 
+function(import_spack_library pkg_name target_name)
+  find_spack_package(${pkg_name} PKG_PATH)
+  file(GLOB LIBRARY "${PKG_PATH}/lib/*/lib${pkg_name}.so")
+  if (NOT LIBRARY)
+    file(GLOB LIBRARY "${PKG_PATH}/lib/lib${pkg_name}.so")
+  endif()
+  # Make sure that only one file is matched by extracting first hit
+  list(GET LIBRARY 0 LIBRARY)
+
+  set(INCLUDE_DIR "${PKG_PATH}/include")
+
+  add_library(${target_name} SHARED IMPORTED)
+  set_target_properties(${target_name} PROPERTIES
+  IMPORTED_LOCATION ${LIBRARY}
+  INTERFACE_INCLUDE_DIRECTORIES ${INCLUDE_DIR}
+  )
+
+endfunction(i)
+
 
 # Build options
 option(CPU "Build for CPUs" OFF)
@@ -68,23 +87,7 @@ if(NVIDIA)
   set(CMAKE_CUDA_COMPILER "${CUDAToolkit_ROOT}/bin/nvcc")
   find_package(CUDAToolkit REQUIRED)
 
-  find_spack_package(cutensor CUTENSOR_PATH)
-
-  file(GLOB CUTENSOR_LIBRARY "${CUTENSOR_PATH}/lib/*/libcutensor.so")
-  if(NOT CUTENSOR_LIBRARY)
-    file(GLOB CUTENSOR_LIBRARY "${CUTENSOR_PATH}/lib/libcutensor.so")
-  endif()
-
-  # Make sure that only one file is matched by extracting first hit
-  list(GET CUTENSOR_LIBRARY 0 CUTENSOR_LIBRARY)
-  set(CUTENSOR_INCLUDE_DIR "${CUTENSOR_PATH}/include")
-
-  add_library(CUTENSOR::cutensor SHARED IMPORTED)
-  set_target_properties(CUTENSOR::cutensor PROPERTIES
-    IMPORTED_LOCATION "${CUTENSOR_LIBRARY}"
-    INTERFACE_INCLUDE_DIRECTORIES "${CUTENSOR_INCLUDE_DIR}"
-  )
-
+  import_spack_library(cutensor CUTENSOR::cutensor)
 endif()
 
 # Specify sources
@@ -159,8 +162,26 @@ elseif(CPU)
 endif()
 
 # Custom commands
-add_custom_target(format
-    COMMAND astyle --style=google --suffix=none ${CPP_SOURCES} ${CU_SOURCES}
-    COMMENT "Formatting source files with astyle"
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+file(GLOB_RECURSE FORMAT_SOURCES
+  "${CMAKE_SOURCE_DIR}/src/*.cpp"
+  "${CMAKE_SOURCE_DIR}/src/*.cu"
+  "${CMAKE_SOURCE_DIR}/src/*.hpp"
+  "${CMAKE_SOURCE_DIR}/include/*.hpp"
+)
+
+find_program(CLANG_FORMAT NAMES clang-format)
+if(CLANG_FORMAT)
+  add_custom_target(format
+    COMMAND ${CLANG_FORMAT} -i ${FORMAT_SOURCES}
+    COMMENT "🧼 Running clang-format..."
+  )
+else()
+  message(WARNING "clang-format not found; skipping format target.")
+endif()
+
+add_custom_target(run_example
+  COMMAND ${CMAKE_COMMAND} -E echo "🚀 Running Example..."
+  COMMAND ./example
+  WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+  DEPENDS example
 )
