@@ -1,0 +1,4 @@
+#pragma once
+#cmakedefine CPU
+#cmakedefine NVIDIA
+#cmakedefine AMD

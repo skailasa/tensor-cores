@@ -1,0 +1,53 @@
+{
+    "version": 3,
+    "cmakeMinimumRequired": {
+      "major": 3,
+      "minor": 20
+    },
+    "configurePresets": [
+      {
+        "name": "default",
+        "hidden": true,
+        "generator": "Unix Makefiles",
+        "binaryDir": "${sourceDir}/build",
+        "cacheVariables": {
+          "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+        }
+      },
+      {
+        "name": "cpu-debug",
+        "inherits": "default",
+        "description": "CPU backend, Debug build",
+        "cacheVariables": {
+          "CPU": "ON",
+          "CMAKE_BUILD_TYPE": "Debug"
+        }
+      },
+      {
+        "name": "nvidia-release",
+        "inherits": "default",
+        "description": "NVIDIA backend, Release build",
+        "cacheVariables": {
+          "NVIDIA": "ON",
+          "CMAKE_BUILD_TYPE": "Release"
+        }
+      },
+      {
+        "name": "amd-release",
+        "inherits": "default",
+        "description": "AMD backend, Release build",
+        "cacheVariables": {
+          "AMD": "ON",
+          "CMAKE_BUILD_TYPE": "Release"
+        }
+      }
+    ],
+    "buildPresets": [
+      {
+        "name": "nvidia-release",
+        "configurePreset": "nvidia-release",
+        "description": "build NVIDIA release target",
+        "jobs": 16
+      }
+    ]
+  }
