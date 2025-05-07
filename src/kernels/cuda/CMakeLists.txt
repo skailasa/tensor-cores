@@ -4,5 +4,6 @@ set(CU_SOURCES
   ${CMAKE_CURRENT_SOURCE_DIR}/3_1d_blocktiling.cu
   ${CMAKE_CURRENT_SOURCE_DIR}/4_2d_blocktiling.cu
   ${CMAKE_CURRENT_SOURCE_DIR}/5_vectorise_smem.cu
+  ${CMAKE_CURRENT_SOURCE_DIR}/6_warptiling.cu
   PARENT_SCOPE
 )

@@ -28,4 +28,8 @@ void runSgemm1dBlockTiling(Layout layout, cudaFuncCache cache_configuration, int
 
 void runSgemm2dBlockTiling(Layout layout, cudaFuncCache cache_configuration, int M, int N, int K, float alpha, float *A, float *B, float beta, float *C);
 
+void runSgemmVectoriseSmem(Layout layout, cudaFuncCache cache_configuration,
+    int M, int N, int K, float alpha, float *A, float *B,
+    float beta, float *C);
+
 float runKernel32(int kernel_number, Layout layout, cudaFuncCache cache_configuration, int M, int N, int K, float alpha, float *A, float *B, float beta, float *C);

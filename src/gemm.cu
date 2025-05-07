@@ -177,6 +177,78 @@ void runSgemm2dBlockTiling(Layout layout, cudaFuncCache cache_configuration,
   }
 }
 
+void runSgemmVectoriseSmem(Layout layout, cudaFuncCache cache_configuration,
+                           int M, int N, int K, float alpha, float *A, float *B,
+                           float beta, float *C) {
+
+  const uint BM = 64;
+  const uint BN = 64;
+  const uint BK = 64;
+  const uint TM = 4;
+  const uint TN = 4;
+  static_assert((BM % TM == 0) && (BN % TN == 0),
+                "BM must be divisible by TM and BN must be divisible by TN");
+
+  if (layout == Layout::RowMajor) {
+    dim3 gridDim(ceil_div(M, BM),
+                 ceil_div(N, BN)); // same as in shared mem cache blocking, but
+                                   // with tunable parameters
+    dim3 blockDim((BM * BN) / ((TM * TN)));
+    KernelPtr kernel = sgemm_vectorise_smem_and_gmem_accesses_row_major<BM, BN, BK, TM, TN>;
+    cudaFuncSetCacheConfig(kernel, cache_configuration);
+    kernel<<<gridDim, blockDim>>>(M, N, K, alpha, A, B, beta, C);
+
+  } else if (layout == Layout::ColumnMajor) {
+    // dim3 gridDim(ceil_div(N, BN), ceil_div(M, BM)); // same as in shared mem
+    // // cache blocking, but with tunable parameters
+    // KernelPtr kernel =
+    //     sgemm_vectorise_smem_and_gmem_accesses_column_major<BM, BN, BK, TM, TN>;
+    // cudaFuncSetCacheConfig(kernel, cache_configuration);
+    // kernel<<<gridDim, blockDim>>>(M, N, K, alpha, A, B, beta, C);
+  }
+}
+
+void runSgemmWarptiling(Layout layout, cudaFuncCache cache_configuration,
+                           int M, int N, int K, float alpha, float *A, float *B,
+                           float beta, float *C) {
+
+  const int NUM_THREADS = 128;
+  const int BM = 64;
+  const int BN = 64;
+  const int BK = 32;
+  const int WM = 16;
+  const int WN = 16;
+
+  // const uint WNITER = 4;
+  // const uint TN = 4;
+  // const uint TM = 8;
+  // static_assert((BM % TM == 0) && (BN % TN == 0),
+  //               "BM must be divisible by TM and BN must be divisible by TN");
+
+  if (layout == Layout::RowMajor) {
+    // dim3 gridDim(ceil_div(M, BM),
+    //              ceil_div(N, BN)); // same as in shared mem cache blocking, but
+    //                                // with tunable parameters
+    // dim3 blockDim((BM * BN) / ((TM * TN)));
+    dim3 blockDim(NUM_THREADS);
+    dim3 gridDim(ceil_div(N, BN), ceil_div(M, BM));
+
+    sgemm_warptiling<BM, BN, BK, WM, WN><<<gridDim, blockDim>>>(M, N, K, alpha, A, B, beta, C);
+    // KernelPtr kernel = sgemm_warptiling<BM, BN, BK, WM, WN>;
+    // KernelPtr kernel = sgemm_warptiling<BM, BN, BK, WM, WN>;
+    // cudaFuncSetCacheConfig(kernel, cache_configuration);
+    // kernel<<<gridDim, blockDim>>>(M, N, K, alpha, A, B, beta, C);
+
+  } else if (layout == Layout::ColumnMajor) {
+    // dim3 gridDim(ceil_div(N, BN), ceil_div(M, BM)); // same as in shared mem
+    // // cache blocking, but with tunable parameters
+    // KernelPtr kernel =
+    //     sgemm_vectorise_smem_and_gmem_accesses_column_major<BM, BN, BK, TM, TN>;
+    // cudaFuncSetCacheConfig(kernel, cache_configuration);
+    // kernel<<<gridDim, blockDim>>>(M, N, K, alpha, A, B, beta, C);
+  }
+}
+
 float runKernel32(int kernel_number, Layout layout,
                   cudaFuncCache cache_configuration, int M, int N, int K,
                   float alpha, float *A, float *B, float beta, float *C) {
@@ -244,7 +316,7 @@ float runKernel32(int kernel_number, Layout layout,
     break;
 
   // single naive kernel
-  case 7:
+  case 5:
     time = run_kernel_with_optional_timing(
         [=]() {
           runSgemmSharedMemCacheBlocking(layout, cache_configuration, M, N, K,
@@ -254,10 +326,30 @@ float runKernel32(int kernel_number, Layout layout,
 
     break;
 
-  case 8:
+  case 6:
     time = run_kernel_with_optional_timing(
         [=]() {
           runSgemm1dBlockTiling(layout, cache_configuration, M, N, K, alpha, A,
+                                B, beta, C);
+        },
+        true);
+
+    break;
+
+  case 7:
+    time = run_kernel_with_optional_timing(
+        [=]() {
+          runSgemm1dBlockTiling(layout, cache_configuration, M, N, K, alpha, A,
+                                B, beta, C);
+        },
+        true);
+
+    break;
+
+  case 8:
+    time = run_kernel_with_optional_timing(
+        [=]() {
+          runSgemm2dBlockTiling(layout, cache_configuration, M, N, K, alpha, A,
                                 B, beta, C);
         },
         true);
@@ -267,7 +359,7 @@ float runKernel32(int kernel_number, Layout layout,
   case 9:
     time = run_kernel_with_optional_timing(
         [=]() {
-          runSgemm1dBlockTiling(layout, cache_configuration, M, N, K, alpha, A,
+          runSgemmVectoriseSmem(layout, cache_configuration, M, N, K, alpha, A,
                                 B, beta, C);
         },
         true);
@@ -277,7 +369,17 @@ float runKernel32(int kernel_number, Layout layout,
   case 10:
     time = run_kernel_with_optional_timing(
         [=]() {
-          runSgemm2dBlockTiling(layout, cache_configuration, M, N, K, alpha, A,
+          runSgemmVectoriseSmem(layout, cache_configuration, M, N, K, alpha, A,
+                                B, beta, C);
+        },
+        true);
+
+    break;
+
+  case 11:
+    time = run_kernel_with_optional_timing(
+        [=]() {
+          runSgemmWarptiling(layout, cache_configuration, M, N, K, alpha, A,
                                 B, beta, C);
         },
         true);
