@@ -7,6 +7,8 @@
 #include <iostream>
 #include <string>
 
+const int WARPSIZE = 32;
+
 #define PRINT_FUNC_NAME(func) std::cout << #func << std::endl;
 
 // Declarations of non-template functions

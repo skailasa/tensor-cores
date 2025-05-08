@@ -194,7 +194,8 @@ void runSgemmVectoriseSmem(Layout layout, cudaFuncCache cache_configuration,
                  ceil_div(N, BN)); // same as in shared mem cache blocking, but
                                    // with tunable parameters
     dim3 blockDim((BM * BN) / ((TM * TN)));
-    KernelPtr kernel = sgemm_vectorise_smem_and_gmem_accesses_row_major<BM, BN, BK, TM, TN>;
+    KernelPtr kernel =
+        sgemm_vectorise_smem_and_gmem_accesses_row_major<BM, BN, BK, TM, TN>;
     cudaFuncSetCacheConfig(kernel, cache_configuration);
     kernel<<<gridDim, blockDim>>>(M, N, K, alpha, A, B, beta, C);
 
@@ -202,38 +203,49 @@ void runSgemmVectoriseSmem(Layout layout, cudaFuncCache cache_configuration,
     // dim3 gridDim(ceil_div(N, BN), ceil_div(M, BM)); // same as in shared mem
     // // cache blocking, but with tunable parameters
     // KernelPtr kernel =
-    //     sgemm_vectorise_smem_and_gmem_accesses_column_major<BM, BN, BK, TM, TN>;
+    //     sgemm_vectorise_smem_and_gmem_accesses_column_major<BM, BN, BK, TM,
+    //     TN>;
     // cudaFuncSetCacheConfig(kernel, cache_configuration);
     // kernel<<<gridDim, blockDim>>>(M, N, K, alpha, A, B, beta, C);
   }
 }
 
-void runSgemmWarptiling(Layout layout, cudaFuncCache cache_configuration,
-                           int M, int N, int K, float alpha, float *A, float *B,
-                           float beta, float *C) {
+void runSgemmWarptiling(Layout layout, cudaFuncCache cache_configuration, int M,
+                        int N, int K, float alpha, float *A, float *B,
+                        float beta, float *C) {
 
   const int NUM_THREADS = 128;
   const int BM = 64;
   const int BN = 64;
   const int BK = 32;
-  const int WM = 16;
-  const int WN = 16;
+  const int WM = 32;
+  const int WN = 32;
+  const int TN = 4;
+  const int TM = 4;
+  const int WNITER = 2;
+  const int WMITER = (WM * WN) / (WARPSIZE * TM * TN * WNITER);
+  const int WSUBM = WM / WMITER; // Sizes of each subtile after split by WMITER/WNITER
+  const int WSUBN = WN / WNITER; // These sizes are in units of physical entries
+  constexpr int threadsPerSubtileRow = WSUBM / TM;
+  constexpr int threadsPerSubtileCol = WSUBN / TN;
+  static_assert(threadsPerSubtileRow * threadsPerSubtileCol == WARPSIZE);
 
-  // const uint WNITER = 4;
-  // const uint TN = 4;
-  // const uint TM = 8;
+  // static_assert(WM != 0 && WMITER != 0, "WM and WMITER must be non-zero.");
+  // static_assert(WM % WMITER == 0, "WM must be divisible by WMITER.");
   // static_assert((BM % TM == 0) && (BN % TN == 0),
   //               "BM must be divisible by TM and BN must be divisible by TN");
 
   if (layout == Layout::RowMajor) {
     // dim3 gridDim(ceil_div(M, BM),
-    //              ceil_div(N, BN)); // same as in shared mem cache blocking, but
+    //              ceil_div(N, BN)); // same as in shared mem cache blocking,
+    //              but
     //                                // with tunable parameters
     // dim3 blockDim((BM * BN) / ((TM * TN)));
     dim3 blockDim(NUM_THREADS);
     dim3 gridDim(ceil_div(N, BN), ceil_div(M, BM));
 
-    sgemm_warptiling<BM, BN, BK, WM, WN><<<gridDim, blockDim>>>(M, N, K, alpha, A, B, beta, C);
+    sgemm_warptiling<BM, BN, BK, WM, WN, WNITER, WMITER, TM, TN>
+        <<<gridDim, blockDim>>>(M, N, K, alpha, A, B, beta, C);
     // KernelPtr kernel = sgemm_warptiling<BM, BN, BK, WM, WN>;
     // KernelPtr kernel = sgemm_warptiling<BM, BN, BK, WM, WN>;
     // cudaFuncSetCacheConfig(kernel, cache_configuration);
@@ -243,7 +255,8 @@ void runSgemmWarptiling(Layout layout, cudaFuncCache cache_configuration,
     // dim3 gridDim(ceil_div(N, BN), ceil_div(M, BM)); // same as in shared mem
     // // cache blocking, but with tunable parameters
     // KernelPtr kernel =
-    //     sgemm_vectorise_smem_and_gmem_accesses_column_major<BM, BN, BK, TM, TN>;
+    //     sgemm_vectorise_smem_and_gmem_accesses_column_major<BM, BN, BK, TM,
+    //     TN>;
     // cudaFuncSetCacheConfig(kernel, cache_configuration);
     // kernel<<<gridDim, blockDim>>>(M, N, K, alpha, A, B, beta, C);
   }
@@ -379,8 +392,8 @@ float runKernel32(int kernel_number, Layout layout,
   case 11:
     time = run_kernel_with_optional_timing(
         [=]() {
-          runSgemmWarptiling(layout, cache_configuration, M, N, K, alpha, A,
-                                B, beta, C);
+          runSgemmWarptiling(layout, cache_configuration, M, N, K, alpha, A, B,
+                             beta, C);
         },
         true);
 
