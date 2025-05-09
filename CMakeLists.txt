@@ -140,6 +140,7 @@ add_subdirectory(examples)
 
 # Custom commands
 file(GLOB_RECURSE FORMAT_SOURCES
+  "${CMAKE_SOURCE_DIR}/examples/*.cpp"
   "${CMAKE_SOURCE_DIR}/src/*.cpp"
   "${CMAKE_SOURCE_DIR}/src/*.cu"
   "${CMAKE_SOURCE_DIR}/src/*.hpp"

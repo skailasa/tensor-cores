@@ -7,6 +7,7 @@
 // equivalent to typedef void (*my_kernel)(arg1, arg2,...) - a raw pointer to a function
 // can point to any function with this/that signature
 using KernelPtr = void(*)(int, int, int, float, const float*, const float*, float, float*);
+using KernelPtrMut = void(*)(int, int, int, float, float*, float*, float, float*);
 
 /// @brief  Call cubLAS with single precision inputs
 void runCublasF32(cublasHandle_t handle, Layout layout, int M, int N, int K, float alpha, float *A, float *B, float beta, float*C);

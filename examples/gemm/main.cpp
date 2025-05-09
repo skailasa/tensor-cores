@@ -28,7 +28,7 @@ int main() {
   zero_init_matrix<float>(B, K * N);
   randomise_matrix<float>(B, K * N, false);
   auto layout = Layout::RowMajor;
-  auto cache_configuration = cudaFuncCachePreferL1;
+  auto cache_configuration = cudaFuncCachePreferShared;
 
   const std::string logFile = "logFile.txt";
 
@@ -72,7 +72,7 @@ int main() {
   // Perform GEMM
   auto time_cublas = runKernel32(0, layout, cache_configuration, M, N, K, alpha,
                                  A_d, B_d, beta, C_d);
-  auto time_kernel = runKernel32(11, layout, cache_configuration, M, N, K,
+  auto time_kernel = runKernel32(10, layout, cache_configuration, M, N, K,
                                  alpha, A_d, B_d, beta, C_d);
 
   auto _gflops = performance_metrics(fs, M, N, K, time_kernel, time_cublas);
