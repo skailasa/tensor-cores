@@ -43,7 +43,7 @@ int main() {
   // Print device properties
 
   bool print_matrices = false;
-  bool compute_error = true;
+  bool compute_error = false;
 
   if (print_matrices) {
     fs << "A:\n";

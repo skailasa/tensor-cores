@@ -68,7 +68,7 @@ else()
   message(FATAL_ERROR "❌ No target selected for build")
 endif()
 
-project(example LANGUAGES C CXX)
+project(tensor_cores LANGUAGES C CXX)
 
 # configure a header file to document various build config options
 configure_file(${CMAKE_SOURCE_DIR}/Config.h.in ${CMAKE_BINARY_DIR}/Config.h)
@@ -94,8 +94,8 @@ endif()
 
 # Specify sources
 set(CPP_SOURCES
-  ${CMAKE_SOURCE_DIR}/src/main.cpp
   ${CMAKE_SOURCE_DIR}/src/utils.cpp
+  CACHE INTERNAL "C++ source files" # to be visible by lower level CMakeLists files
 )
 
 if (NVIDIA)
@@ -136,32 +136,7 @@ if (NVIDIA)
   )
 endif()
 
-# Add a target for the example code
-add_executable(${PROJECT_NAME}
-  ${CPP_SOURCES}
-)
-
-target_include_directories(${PROJECT_NAME}
-  PRIVATE
-    ${CMAKE_SOURCE_DIR}/include
-  PUBLIC
-    ${PROJECT_BINARY_DIR}  # so consumers can see Config.h if needed
-)
-
-if(NVIDIA)
-  target_link_libraries(${PROJECT_NAME}
-  PRIVATE
-    gemm_with_openmp
-    cuda_kernels
-)
-
-elseif(AMD)
-  # target_link_libraries(${PROJECT_NAME}
-  #   roc::rocthrust
-  #   roc::hipsparse
-  # )
-elseif(CPU)
-endif()
+add_subdirectory(examples)
 
 # Custom commands
 file(GLOB_RECURSE FORMAT_SOURCES
@@ -181,9 +156,4 @@ else()
   message(WARNING "clang-format not found; skipping format target.")
 endif()
 
-add_custom_target(run_example
-  COMMAND ${CMAKE_COMMAND} -E echo "🚀 Running Example..."
-  COMMAND ./example
-  WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
-  DEPENDS example
-)
+
