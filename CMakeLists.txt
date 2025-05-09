@@ -27,7 +27,6 @@ function(import_spack_library pkg_name target_name)
 
 endfunction(i)
 
-
 # Build options
 option(CPU "Build for CPUs" OFF)
 option(NVIDIA "Build for NVIDIA GPUs" OFF)
@@ -68,7 +67,7 @@ else()
   message(FATAL_ERROR "❌ No target selected for build")
 endif()
 
-project(example LANGUAGES C CXX)
+project(tensor_cores LANGUAGES C CXX)
 
 # configure a header file to document various build config options
 configure_file(${CMAKE_SOURCE_DIR}/Config.h.in ${CMAKE_BINARY_DIR}/Config.h)
@@ -94,8 +93,8 @@ endif()
 
 # Specify sources
 set(CPP_SOURCES
-  ${CMAKE_SOURCE_DIR}/src/main.cpp
   ${CMAKE_SOURCE_DIR}/src/utils.cpp
+  CACHE INTERNAL "Shared Source Files" # ensures that this is visible in subdirectories
 )
 
 if (NVIDIA)
@@ -136,35 +135,12 @@ if (NVIDIA)
   )
 endif()
 
-# Add a target for the example code
-add_executable(${PROJECT_NAME}
-  ${CPP_SOURCES}
-)
-
-target_include_directories(${PROJECT_NAME}
-  PRIVATE
-    ${CMAKE_SOURCE_DIR}/include
-  PUBLIC
-    ${PROJECT_BINARY_DIR}  # so consumers can see Config.h if needed
-)
-
-if(NVIDIA)
-  target_link_libraries(${PROJECT_NAME}
-  PRIVATE
-    gemm_with_openmp
-    cuda_kernels
-)
-
-elseif(AMD)
-  # target_link_libraries(${PROJECT_NAME}
-  #   roc::rocthrust
-  #   roc::hipsparse
-  # )
-elseif(CPU)
-endif()
+# All binarie built in this project
+add_subdirectory(examples)
 
 # Custom commands
 file(GLOB_RECURSE FORMAT_SOURCES
+  "${CMAKE_SOURCE_DIR}/examples/*.cpp"
   "${CMAKE_SOURCE_DIR}/src/*.cpp"
   "${CMAKE_SOURCE_DIR}/src/*.cu"
   "${CMAKE_SOURCE_DIR}/src/*.hpp"
@@ -181,9 +157,3 @@ else()
   message(WARNING "clang-format not found; skipping format target.")
 endif()
 
-add_custom_target(run_example
-  COMMAND ${CMAKE_COMMAND} -E echo "🚀 Running Example..."
-  COMMAND ./example
-  WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
-  DEPENDS example
-)

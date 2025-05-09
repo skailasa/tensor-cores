@@ -31,7 +31,6 @@ __device__ void test_matrix_equality_smem(float *A, float *B, Layout layout) {
       float a = A[row * N + col];
       float b = B[row * N + col];
       cudaAssert(fabsf(a - b) < 1e-4f);
-      // assert(0);
     }
   }
 }
@@ -41,8 +40,8 @@ __device__ void test_matrix_equality_smem(float *A, float *B, Layout layout) {
 /// Shared memory loads
 template <const int BM, const int BN, const int BK>
 __device__ __forceinline__ void
-load_from_gmem_cooperative(int M, int N, int K, float *A, float *As, float *As_T,
-                   float *B, float *Bs, int bk) {
+load_from_gmem_cooperative(int M, int N, int K, const float *A, float *As, float *As_T,
+                   const float *B, float *Bs, int bk) {
 
   int threadId = threadIdx.x;
   int threadsPerBlock = blockDim.x;
@@ -93,8 +92,8 @@ load_from_gmem_cooperative(int M, int N, int K, float *A, float *As, float *As_T
 
 /// A vectorised loading strategy where each thread loads 32*4 = 128 bit = 16 Bytes per-shared memory access
 template <const int BM, const int BN, const int BK>
-__device__ __forceinline__ void load_from_gmem_vectorised(int M, int N, int K, float *A,
-                                               float *As, float *B, float *Bs,
+__device__ __forceinline__ void load_from_gmem_vectorised(int M, int N, int K, const float *A,
+                                               float *As, const float *B, float *Bs,
                                                int bk) {
 
   const int threadId = threadIdx.x;
@@ -116,7 +115,7 @@ __device__ __forceinline__ void load_from_gmem_vectorised(int M, int N, int K, f
     float4 tmp = {0.0f, 0.0f, 0.0f, 0.0f};
 
     if (globalRow < M && globalCol + 3 < K) {
-      tmp = reinterpret_cast<float4 *>(&A[globalRow * K + globalCol])[0];
+      tmp = reinterpret_cast<const float4 *>(&A[globalRow * K + globalCol])[0];
     }
 
     // N.B For future me, this commented out code basically reads into rows of
@@ -143,7 +142,7 @@ __device__ __forceinline__ void load_from_gmem_vectorised(int M, int N, int K, f
     float4 tmp = {0.0f, 0.0f, 0.0f, 0.0f};
 
     if (globalRow < K && globalCol + 3 < N) {
-      tmp = reinterpret_cast<float4 *>(&B[globalRow * N + globalCol])[0];
+      tmp = reinterpret_cast<const float4 *>(&B[globalRow * N + globalCol])[0];
     }
 
     Bs[row * BN + col * 4] = tmp.x;
@@ -158,7 +157,7 @@ __device__ __forceinline__ void load_from_gmem_vectorised(int M, int N, int K, f
 
 template <const int BM, const int BN, const int BK>
 __device__ __forceinline__ void
-test_load_from_gmem(int M, int N, int K, float *A, float *B) {
+test_load_from_gmem(int M, int N, int K, const float *A, const float *B) {
 
   const int threadId = threadIdx.x;
   const int threadsPerBlock = blockDim.x;
@@ -174,7 +173,7 @@ test_load_from_gmem(int M, int N, int K, float *A, float *B) {
     load_from_gmem_vectorised<BM, BN, BK>(M, N, K, A, As_found_T, B, Bs_found, bk);
 
     test_matrix_equality_smem<BM, BK>(As_found_T, As_expected_T, Layout::ColumnMajor);
-    // test_matrix_equality_smem<BK, BN>(Bs_expected, Bs_found, Layout::RowMajor);
+    test_matrix_equality_smem<BK, BN>(Bs_expected, Bs_found, Layout::RowMajor);
   }
 
 
@@ -185,8 +184,8 @@ test_load_from_gmem(int M, int N, int K, float *A, float *B) {
 
 template <const int BM, const int BN, const int BK, const int WM, const int WN,
           const int WNITER, const int WMITER, const int TM, const int TN>
-__global__ void sgemm_warptiling(int M, int N, int K, float alpha, float *A,
-                                 float *B, float beta, float *C) {
+__global__ void sgemm_warptiling(int M, int N, int K, float alpha, const float *A,
+                                 const float *B, float beta, float *C) {
 
   __shared__ float As[BM * BK];
   __shared__ float tmp[BM * BK];
@@ -195,7 +194,6 @@ __global__ void sgemm_warptiling(int M, int N, int K, float alpha, float *A,
   // Inner loop is unrolled, as usual.
   // The two outer loops are over thread blocks
   const int threadId = threadIdx.x;
-  const int threadsPerBlock = blockDim.x;
 
   // Calculate warp position within thread block
   const int warpId = threadId / WARPSIZE;
@@ -221,8 +219,8 @@ __global__ void sgemm_warptiling(int M, int N, int K, float alpha, float *A,
   // load_from_gmem_test<BM, BN, BK>(M, N, K, A, As, B, Bs, true);
 
   for (int bk = 0; bk < K; bk += BK) {
-    load_from_gmem_vectorised<BM, BN, BK>(M, N, K, A, As, B, Bs, bk);
-    // load_from_gmem_cooperative<BM, BN, BK>(M, N, K, A, tmp, As, B, Bs, bk);
+    // load_from_gmem_vectorised<BM, BN, BK>(M, N, K, A, As, B, Bs, bk);
+    load_from_gmem_cooperative<BM, BN, BK>(M, N, K, A, tmp, As, B, Bs, bk);
 
     // Uncomment to benchmark old 2D blocktiling approach + manual transpose
     // load_from_gmem_old<BM, BN, BK>(M, N, K, A, As, As_T, B, Bs, bk);
@@ -266,66 +264,113 @@ __global__ void sgemm_warptiling(int M, int N, int K, float alpha, float *A,
     __syncthreads();
   }
 
+  int cRow = blockIdx.y * BM;
+  int cCol = blockIdx.x * BN;
+  // Advance C to the appropriate Warp Row/COl
+  C += (cRow + warpRow * WM) * N + cCol + warpCol * WN;
+
   // Only step left is to write the results from thread local results to global memory
   for (uint wSubRowIdx = 0; wSubRowIdx < WMITER; ++wSubRowIdx) {
     for (uint wSubColIdx = 0; wSubColIdx < WNITER; ++wSubColIdx) {
+      // Move pointer to right subtile of warp
+      float *C_interim = C + (wSubRowIdx * WSUBM) * N + wSubColIdx * WSUBN;
+
+      // vector saving
       for (uint i = 0; i < TM; ++i) {
-        for (uint j = 0; j < TN; ++j) {
-          const int threadResultsLinearIndex = (wSubRowIdx * TM + i) * (WNITER * TN) +
+        for (uint j = 0; j < TN; j += 4) {
+
+          // load C vector into registers
+          float4 tmp = reinterpret_cast<float4 *>(
+            &C_interim[(threadRowInWarp * TM + i) * N +
+                       threadColInWarp * TN + j])[0];
+
+          // perform GEMM update in reg
+          const int linearIndexThreadResults = (wSubRowIdx * TM + i) * (WNITER * TN) +
                         wSubColIdx * TN + j;
+          tmp.x = alpha * threadResults[linearIndexThreadResults + 0] + beta * tmp.x;
+          tmp.y = alpha * threadResults[linearIndexThreadResults + 1] + beta * tmp.y;
+          tmp.z = alpha * threadResults[linearIndexThreadResults + 2] + beta * tmp.z;
+          tmp.w = alpha * threadResults[linearIndexThreadResults + 3] + beta * tmp.w;
+          // write back
+          reinterpret_cast<float4 *>(
+              &C_interim[(threadRowInWarp * TM + i) * N +
+                        threadColInWarp * TN + j])[0] = tmp;
 
-          const int globalRow = blockIdx.y * BM +
-                                 warpRow * WM +
-                                 wSubRowIdx * WSUBM +
-                                 threadRowInWarp * TM +
-                                 i;
-
-          const int globalCol = blockIdx.x * BN +
-                                 warpCol * WN +
-                                 wSubColIdx * WSUBN +
-                                 threadColInWarp * TN +
-                                 j;
-
-          if (globalRow < M && globalCol < N) {
-            const int globalLinearIndex = globalRow * N + globalCol;
-            float c_old = C[globalLinearIndex];
-            float c_new = alpha * threadResults[threadResultsLinearIndex] + beta * c_old;
-            C[globalLinearIndex] = c_new;
-          }
         }
       }
+
+      // for (uint i = 0; i < TM; ++i) {
+      //   for (uint j = 0; j < TN; ++j) {
+
+      //     const int threadResultsLinearIndex = (wSubRowIdx * TM + i) * (WNITER * TN) +
+      //                   wSubColIdx * TN + j;
+
+      //     float c_old = C_interim[(threadRowInWarp * TM + i) * N + (threadColInWarp * TN + j)];
+      //     float c_new = alpha * threadResults[threadResultsLinearIndex] + beta * c_old;
+      //     C_interim[(threadRowInWarp * TM + i) * N + (threadColInWarp * TN + j)] = c_new;
+      //   }
+      // }
+
+      // Example of Scalar saving without advancing C to warp tile
+        // for (uint j = 0; j < TN; ++j) {
+        //   const int threadResultsLinearIndex = (wSubRowIdx * TM + i) * (WNITER * TN) +
+        //                 wSubColIdx * TN + j;
+
+        //   const int globalRow = blockIdx.y * BM +
+        //                          warpRow * WM +
+        //                          wSubRowIdx * WSUBM +
+        //                          threadRowInWarp * TM +
+        //                          i;
+
+        //   const int globalCol = blockIdx.x * BN +
+        //                          warpCol * WN +
+        //                          wSubColIdx * WSUBN +
+        //                          threadColInWarp * TN +
+        //                          j;
+
+        //   if (globalRow < M && globalCol < N) {
+        //     const int globalLinearIndex = globalRow * N + globalCol;
+        //     float c_old = C[globalLinearIndex];
+        //     float c_new = alpha * threadResults[threadResultsLinearIndex] + beta * c_old;
+        //     C[globalLinearIndex] = c_new;
+        //   }
+        // }
     }
   }
 }
 
 template __global__ void
-sgemm_warptiling<64, 64, 64, 16, 16, 2, 2, 4, 4>(int, int, int, float, float *,
-                                              float *, float, float *);
+sgemm_warptiling<64, 64, 64, 16, 16, 2, 2, 4, 4>(int, int, int, float, const float *,
+                                              const float *, float, float *);
 
 template __global__ void
-sgemm_warptiling<64, 64, 32, 16, 16, 2, 2, 4, 4>(int, int, int, float, float *,
-                                              float *, float, float *);
+sgemm_warptiling<64, 64, 32, 16, 16, 2, 2, 4, 4>(int, int, int, float, const float *,
+                                              const float *, float, float *);
 
 template __global__ void
-sgemm_warptiling<64, 64, 32, 32, 32, 2, 2, 4, 4>(int, int, int, float, float *,
-                                              float *, float, float *);
+sgemm_warptiling<64, 64, 32, 32, 32, 2, 2, 4, 4>(int, int, int, float, const float *,
+                                              const float *, float, float *);
 
 template __global__ void
-sgemm_warptiling<64, 64, 64, 32, 32, 2, 2, 4, 4>(int, int, int, float, float *,
-                                              float *, float, float *);
+sgemm_warptiling<64, 64, 64, 32, 32, 2, 2, 4, 4>(int, int, int, float, const float *,
+                                              const float *, float, float *);
 
 template __global__ void
-sgemm_warptiling<64, 64, 64, 16, 16, 2, 1, 4, 4>(int, int, int, float, float *,
-                                              float *, float, float *);
+sgemm_warptiling<64, 64, 64, 16, 16, 2, 1, 4, 4>(int, int, int, float, const float *,
+                                              const float *, float, float *);
 
 template __global__ void
-sgemm_warptiling<64, 64, 32, 16, 16, 2, 1, 4, 4>(int, int, int, float, float *,
-                                              float *, float, float *);
+sgemm_warptiling<64, 64, 32, 16, 16, 2, 1, 4, 4>(int, int, int, float, const float *,
+                                              const float *, float, float *);
 
 template __global__ void
-sgemm_warptiling<64, 64, 32, 32, 32, 2, 1, 4, 4>(int, int, int, float, float *,
-                                              float *, float, float *);
+sgemm_warptiling<64, 64, 32, 32, 32, 2, 1, 4, 4>(int, int, int, float, const float *,
+                                              const float *, float, float *);
 
 template __global__ void
-sgemm_warptiling<64, 64, 64, 32, 32, 2, 1, 4, 4>(int, int, int, float, float *,
-                                              float *, float, float *);
+sgemm_warptiling<64, 64, 64, 32, 32, 2, 1, 4, 4>(int, int, int, float, const float *,
+                                              const float *, float, float *);
+
+template __global__ void
+sgemm_warptiling<128, 128, 16, 64, 64, 4, 1, 8, 4>(int, int, int, float, const float *,
+                                              const float *, float, float *);
