@@ -12,13 +12,13 @@ int main() {
 
   float alpha = 1.0;
   float beta = 0.0;
-  // int M = 4096;
-  // int K = 4096;
-  // int N = 4096;
+  int M = 4096;
+  int K = 4096;
+  int N = 4096;
 
-  int M = 512;
-  int K = 512;
-  int N = 512;
+  // int M = 512;
+  // int K = 512;
+  // int N = 512;
 
   float *A = new float[M * K];
   zero_init_matrix<float>(A, M * K);
@@ -42,7 +42,7 @@ int main() {
 
   // Print device properties
 
-  bool print_matrices = true;
+  bool print_matrices = false;
   bool compute_error = true;
 
   if (print_matrices) {

@@ -1,12 +1,12 @@
 #include "kernels.hpp"
 #include "types.hpp"
 #include <stdio.h>
+#include <assert.h>
 
 
-#define assert(X)                                                              \
-  if (!(X))                                                                    \
-    printf("tid %d: %s, %d\n", threadIdx.x, __FILE__, __LINE__);               \
-  return;
+#define cudaAssert(condition) \
+  if (!(condition)) printf("Assertion %s failed!\n", #condition);
+
 
 const int WARPSIZE = 32;
 
@@ -22,7 +22,7 @@ __device__ void test_matrix_equality_smem(float *A, float *B, Layout layout) {
       int col = i % N;
       float a = A[col * M + row];
       float b = B[col * M + row];
-      assert(fabsf(a - b) < 1e-4f);
+      cudaAssert(fabsf(a - b) < 1e-4f);
     }
   } else if (layout == Layout::RowMajor) {
     for (int i = threadIdx.x; i < M * N; i += threadsPerBlock) {
@@ -30,15 +30,18 @@ __device__ void test_matrix_equality_smem(float *A, float *B, Layout layout) {
       int col = i % N;
       float a = A[row * N + col];
       float b = B[row * N + col];
-      assert(fabsf(a - b) < 1e-4f);
+      cudaAssert(fabsf(a - b) < 1e-4f);
       // assert(0);
     }
   }
 }
 
+
+/// This is known to work from 2D blocktiling code so can be used as a point of truth for testing
+/// Shared memory loads
 template <const int BM, const int BN, const int BK>
 __device__ __forceinline__ void
-load_from_gmem_old(int M, int N, int K, float *A, float *As, float *As_T,
+load_from_gmem_cooperative(int M, int N, int K, float *A, float *As, float *As_T,
                    float *B, float *Bs, int bk) {
 
   int threadId = threadIdx.x;
@@ -88,8 +91,9 @@ load_from_gmem_old(int M, int N, int K, float *A, float *As, float *As_T,
   __syncthreads();
 }
 
+/// A vectorised loading strategy where each thread loads 32*4 = 128 bit = 16 Bytes per-shared memory access
 template <const int BM, const int BN, const int BK>
-__device__ __forceinline__ void load_from_gmem(int M, int N, int K, float *A,
+__device__ __forceinline__ void load_from_gmem_vectorised(int M, int N, int K, float *A,
                                                float *As, float *B, float *Bs,
                                                int bk) {
 
@@ -102,7 +106,7 @@ __device__ __forceinline__ void load_from_gmem(int M, int N, int K, float *A,
     // 4 floats at a time of row major data. The number of rows is still the
     // same, and therefore so is the code to calculate the physical row index
     // For future
-    int row = i / BK;
+    int row = i / (BK / 4);
     int col = i % (BK / 4);
     int globalRow =
         blockIdx.y * BM +
@@ -131,7 +135,7 @@ __device__ __forceinline__ void load_from_gmem(int M, int N, int K, float *A,
 
   // // Load B into Bs
   for (int i = threadId; i < ((BK * BN) / 4); i += threadsPerBlock) {
-    int row = i / BN;
+    int row = i / (BN / 4);
     int col = i % (BN / 4);
     int globalRow = bk + row;
     int globalCol = blockIdx.x * BN + col * 4;
@@ -151,134 +155,32 @@ __device__ __forceinline__ void load_from_gmem(int M, int N, int K, float *A,
   __syncthreads();
 }
 
-// Compute a warp matrix multiply in shared memory
-template <const int BM, const int BN, const int BK, const int WM, const int WN>
-__device__ __forceinline__ void process_in_smem(int M, int N, int K) {}
 
 template <const int BM, const int BN, const int BK>
 __device__ __forceinline__ void
-load_from_gmem_test(int M, int N, int K, float *A, float *As, float *B,
-                    float *Bs, bool test) {
+test_load_from_gmem(int M, int N, int K, float *A, float *B) {
 
   const int threadId = threadIdx.x;
   const int threadsPerBlock = blockDim.x;
 
-  // Used for testing purposes only, if small shouldn't impact kernel
-  // performance and can be commented out
-  __shared__ float As_test_1[BM * BK];
-  __shared__ float As_test_2[BM * BK];
-  __shared__ float As_T_test[BK * BM];
+  __shared__ float As_expected[BM * BK];
+  __shared__ float Bs_expected[BK * BN];
+  __shared__ float As_expected_T[BK * BM];
+  __shared__ float As_found_T[BM * BK];
+  __shared__ float Bs_found[BK * BN];
 
   for (int bk = 0; bk < K; bk += BK) {
+    load_from_gmem_cooperative<BM, BN, BK>(M, N, K, A, As_expected, As_expected_T, B, Bs_expected, bk);
+    load_from_gmem_vectorised<BM, BN, BK>(M, N, K, A, As_found_T, B, Bs_found, bk);
 
-    if (test) {
-      // A straightforward way of loading A into As, for testing.
-      for (int i = threadId; i < BM * BK; i += threadsPerBlock) {
-        // Assign threads to physical rows and columns again assuming row major
-        // order of data i.e. adjacent data correspond to adjacent threads
-        int row = i / BK;
-        int col = i % BK;
-        int globalRow =
-            blockIdx.y * BM +
-            row; // convert block index into units of threads, and add local row
-        int globalCol = bk + col;
-
-        if (globalRow < M && globalCol < K)
-          As_test_1[row * BK + col] = A[globalRow * K + globalCol];
-        else
-          As_test_1[row * BK + col] = 0.0f;
-      }
-    }
-
-    // Load A into As, assume row major order
-    for (int i = threadId; i < (BM * BK / 4); i += threadsPerBlock) {
-
-      // Basically indexing by saying that number of cols 4x smaller as we read
-      // in 4 floats at a time of row major data. The number of rows is still
-      // the same, and therefore so is the code to calculate the physical row
-      // index For future
-      int row = i / BK;
-      int col = i % (BK / 4);
-      int globalRow =
-          blockIdx.y * BM +
-          row; // convert block index into units of threads, and add local row
-      int globalCol = bk + col * 4;
-
-      float4 tmp = {0.0f, 0.0f, 0.0f, 0.0f};
-
-      if (globalRow < M && globalCol + 3 < K) {
-        tmp = reinterpret_cast<float4 *>(&A[globalRow * K + globalCol])[0];
-      }
-
-      // N.B For future me, this commented out code basically reads into rows of
-      // As Reading in in row major order As[row * BK + col * 4]     = tmp.x;
-      // As[row * BK + col * 4 + 1] = tmp.y;
-      // As[row * BK + col * 4 + 2] = tmp.z;
-      // As[row * BK + col * 4 + 3] = tmp.w;
-      if (test) {
-        As_test_2[row * BK + col * 4] = tmp.x;
-        As_test_2[row * BK + col * 4 + 1] = tmp.y;
-        As_test_2[row * BK + col * 4 + 2] = tmp.z;
-        As_test_2[row * BK + col * 4 + 3] = tmp.w;
-      }
-
-      // However, to read in and transpose at the same time can switch into
-      // column major order Read in and transpose at the same time
-      As[(col * 4 + 0) * BM + row] = tmp.x;
-      As[(col * 4 + 1) * BM + row] = tmp.y;
-      As[(col * 4 + 2) * BM + row] = tmp.z;
-      As[(col * 4 + 3) * BM + row] = tmp.w;
-    }
-
-    // Load B into Bs
-    for (int i = threadId; i < ((BK * BN) / 4); i += threadsPerBlock) {
-      int row = i / BN;
-      int col = i % (BN / 4);
-      int globalRow = bk + row;
-      int globalCol = blockIdx.x * BN + col * 4;
-
-      float4 tmp = {0.0f, 0.0f, 0.0f, 0.0f};
-
-      if (globalRow < K && globalCol + 3 < N) {
-        tmp = reinterpret_cast<float4 *>(&B[globalRow * N + globalCol])[0];
-      }
-
-      Bs[row * BN + col * 4] = tmp.x;
-      Bs[row * BN + col * 4 + 1] = tmp.y;
-      Bs[row * BN + col * 4 + 2] = tmp.z;
-      Bs[row * BN + col * 4 + 3] = tmp.w;
-    }
-
-    if (test) {
-      // Then need to test how long it takes to transpose As, already in shared
-      // memory This is a lot slower than reading in and transposing at the same
-      // time.
-      for (int i = threadId; i < BM * BK; i += threadsPerBlock) {
-
-        // Assign threads to physical rows and columns again assuming row major
-        // order of data i.e. adjacent data correspond to adjacent threads
-        int row = i / BK;
-        int col = i % BK;
-        int globalRow =
-            blockIdx.y * BM +
-            row; // convert block index into units of threads, and add local row
-        int globalCol = bk + col;
-
-        if (globalRow < M && globalCol < K)
-          As_T_test[col * BM + row] = As_test_1[row * BK + col];
-      }
-    }
-
-    __syncthreads();
-
-    if (test) {
-      // Test transposition
-      test_matrix_equality_smem<BM, BK>(As, As_T_test, Layout::ColumnMajor);
-
-      // Test loading
-      test_matrix_equality_smem<BM, BK>(As_test_2, As_test_1, Layout::RowMajor);
-    }
+    test_matrix_equality_smem<BM, BK>(As_found_T, As_expected_T, Layout::ColumnMajor);
+    // test_matrix_equality_smem<BK, BN>(Bs_expected, Bs_found, Layout::RowMajor);
   }
+
+
+  // Test transposition
+
+  // Test loading
 }
 
 template <const int BM, const int BN, const int BK, const int WM, const int WN,
@@ -287,6 +189,7 @@ __global__ void sgemm_warptiling(int M, int N, int K, float alpha, float *A,
                                  float *B, float beta, float *C) {
 
   __shared__ float As[BM * BK];
+  __shared__ float tmp[BM * BK];
   __shared__ float Bs[BK * BN];
 
   // Inner loop is unrolled, as usual.
@@ -300,8 +203,6 @@ __global__ void sgemm_warptiling(int M, int N, int K, float alpha, float *A,
   const int warpCol = warpId % (BN / WN);
 
   // Calculate warp tile dimensions
-  // constexpr uint WMITER = (WM * WN) / (WARPSIZE * TM * TN * WNITER);
-
   const int WSUBM = WM / WMITER; // Sizes of each subtile after split by WMITER/WNITER
   const int WSUBN = WN / WNITER; // These sizes are in units of physical entries
 
@@ -310,12 +211,7 @@ __global__ void sgemm_warptiling(int M, int N, int K, float alpha, float *A,
   const int threadRowInWarp = threadIdInWarp / (WSUBN / TN); // have to convert from units of physical entries to thread entries
   const int threadColInWarp = threadIdInWarp % (WSUBN / TN);
 
-  // if (threadIdx.x == 0 && blockIdx.x == 0 && blockIdx.y == 0) {
-  //   printf("Template parameters: BM=%d, BN=%d, BK=%d, WM=%d, WN=%d, WMITER=%d, TM=%d, TN=%d\n TM*WMITER=%d\n" ,
-  //          BM, BN, BK, WM, WN, WMITER, TM, TN, TM * WMITER);
-  // }
   // The warp subtiles are what would actually be handled by a WMMA call
-
   // Allocate registers for thread local data
   float regM[TM * WMITER] = {0.0};
   float regN[TN * WNITER] = {0.0f};
@@ -325,7 +221,8 @@ __global__ void sgemm_warptiling(int M, int N, int K, float alpha, float *A,
   // load_from_gmem_test<BM, BN, BK>(M, N, K, A, As, B, Bs, true);
 
   for (int bk = 0; bk < K; bk += BK) {
-    load_from_gmem<BM, BN, BK>(M, N, K, A, As, B, Bs, bk);
+    load_from_gmem_vectorised<BM, BN, BK>(M, N, K, A, As, B, Bs, bk);
+    // load_from_gmem_cooperative<BM, BN, BK>(M, N, K, A, tmp, As, B, Bs, bk);
 
     // Uncomment to benchmark old 2D blocktiling approach + manual transpose
     // load_from_gmem_old<BM, BN, BK>(M, N, K, A, As, As_T, B, Bs, bk);
@@ -372,35 +269,33 @@ __global__ void sgemm_warptiling(int M, int N, int K, float alpha, float *A,
   // Only step left is to write the results from thread local results to global memory
   for (uint wSubRowIdx = 0; wSubRowIdx < WMITER; ++wSubRowIdx) {
     for (uint wSubColIdx = 0; wSubColIdx < WNITER; ++wSubColIdx) {
-      for (uint resIdxM = 0; resIdxM < TM; ++resIdxM) {
-        for (uint resIdxN = 0; resIdxN < TN; ++resIdxN) {
-          const int i = (wSubRowIdx * TM + resIdxM) * (WNITER * TN) +
-                        wSubColIdx * TN + resIdxN;
+      for (uint i = 0; i < TM; ++i) {
+        for (uint j = 0; j < TN; ++j) {
+          const int threadResultsLinearIndex = (wSubRowIdx * TM + i) * (WNITER * TN) +
+                        wSubColIdx * TN + j;
 
-          const int global_row = blockIdx.y * BM +
+          const int globalRow = blockIdx.y * BM +
                                  warpRow * WM +
                                  wSubRowIdx * WSUBM +
                                  threadRowInWarp * TM +
-                                 resIdxM;
+                                 i;
 
-          const int global_col = blockIdx.x * BN +
+          const int globalCol = blockIdx.x * BN +
                                  warpCol * WN +
                                  wSubColIdx * WSUBN +
                                  threadColInWarp * TN +
-                                 resIdxN;
+                                 j;
 
-          if (global_row < M && global_col < N) {
-            const int global_index = global_row * N + global_col;
-            float c_old = C[global_index];
-            float c_new = alpha * threadResults[i] + beta * c_old;
-            C[global_index] = c_new;
+          if (globalRow < M && globalCol < N) {
+            const int globalLinearIndex = globalRow * N + globalCol;
+            float c_old = C[globalLinearIndex];
+            float c_new = alpha * threadResults[threadResultsLinearIndex] + beta * c_old;
+            C[globalLinearIndex] = c_new;
           }
         }
       }
     }
   }
-
-
 }
 
 template __global__ void
