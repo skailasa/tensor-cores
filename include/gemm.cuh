@@ -19,7 +19,7 @@ void runCublasB16(cublasHandle_t handle, Layout layout, int M, int N, int K, flo
 void runCublasT32(cublasHandle_t handle, Layout layout, int M, int N, int K, float alpha, float *A, float *B, float beta, float*C);
 
 /// @brief  Call cubLAS with single precision inputs casted down to F16 for the actual mul
-void runCublasF16(cublasHandle_t handle, Layout layout, int M, int N, int K, float alpha, float *A, float *B, float beta, float*C);
+void runCublasF32F16(cublasHandle_t handle, Layout layout, int M, int N, int K, float alpha, float *A, float *B, float beta, float*C);
 
 void runSGemmNaive(Layout layout, cudaFuncCache cache_configuration,  int M, int N, int K, float alpha, float *A, float *B, float beta, float *C);
 
@@ -34,3 +34,5 @@ void runSgemmVectoriseSmem(Layout layout, cudaFuncCache cache_configuration,
     float beta, float *C);
 
 float runKernel32(int kernel_number, Layout layout, cudaFuncCache cache_configuration, int M, int N, int K, float alpha, float *A, float *B, float beta, float *C);
+
+float runKernel16(int kernel_number, Layout layout, cudaFuncCache cache_configuration, int M, int N, int K, half alpha, half *A, half *B, half beta, half *C);

@@ -131,9 +131,14 @@ if (NVIDIA)
   target_link_libraries(cuda_kernels PRIVATE CUDA::cublas CUTENSOR::cutensor)
 
   target_include_directories(cuda_kernels PRIVATE
+    ${CMAKE_SOURCE_DIR}/external/cutlass/include/
+  )
+
+  target_include_directories(cuda_kernels PRIVATE
     ${CMAKE_SOURCE_DIR}/include/
     ${CONFIG_HEADER_DIR}
-  )
+    )
+
 endif()
 
 add_subdirectory(examples)

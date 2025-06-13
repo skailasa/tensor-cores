@@ -1,5 +1,6 @@
 #include "gemm.hpp"
 #include "omp.h"
+#include <cuda_fp16.h>
 #include <types.hpp>
 
 void runSgemmCpu(Layout layout, int M, int N, int K, float alpha, float *A,
