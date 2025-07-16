@@ -7,6 +7,7 @@
 // equivalent to typedef void (*my_kernel)(arg1, arg2,...) - a raw pointer to a function
 // can point to any function with this/that signature
 using KernelPtr = void(*)(int, int, int, float, const float*, const float*, float, float*);
+using KernelPtrMut = void(*)(int, int, int, float, float*, float*, float, float*);
 
 /// @brief  Call cubLAS with single precision inputs
 void runCublasF32(cublasHandle_t handle, Layout layout, int M, int N, int K, float alpha, float *A, float *B, float beta, float*C);
@@ -18,7 +19,7 @@ void runCublasB16(cublasHandle_t handle, Layout layout, int M, int N, int K, flo
 void runCublasT32(cublasHandle_t handle, Layout layout, int M, int N, int K, float alpha, float *A, float *B, float beta, float*C);
 
 /// @brief  Call cubLAS with single precision inputs casted down to F16 for the actual mul
-void runCublasF16(cublasHandle_t handle, Layout layout, int M, int N, int K, float alpha, float *A, float *B, float beta, float*C);
+void runCublasF32F16(cublasHandle_t handle, Layout layout, int M, int N, int K, float alpha, float *A, float *B, float beta, float*C);
 
 void runSGemmNaive(Layout layout, cudaFuncCache cache_configuration,  int M, int N, int K, float alpha, float *A, float *B, float beta, float *C);
 
@@ -28,4 +29,10 @@ void runSgemm1dBlockTiling(Layout layout, cudaFuncCache cache_configuration, int
 
 void runSgemm2dBlockTiling(Layout layout, cudaFuncCache cache_configuration, int M, int N, int K, float alpha, float *A, float *B, float beta, float *C);
 
+void runSgemmVectoriseSmem(Layout layout, cudaFuncCache cache_configuration,
+    int M, int N, int K, float alpha, float *A, float *B,
+    float beta, float *C);
+
 float runKernel32(int kernel_number, Layout layout, cudaFuncCache cache_configuration, int M, int N, int K, float alpha, float *A, float *B, float beta, float *C);
+
+float runKernel16(int kernel_number, Layout layout, cudaFuncCache cache_configuration, int M, int N, int K, half alpha, half *A, half *B, half beta, half *C);

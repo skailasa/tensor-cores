@@ -4,3 +4,6 @@
 #include "3_1d_blocktiling.cuh"
 #include "4_2d_blocktiling.cuh"
 #include "5_vectorise_smem.cuh"
+#include "6_warptiling.cuh"
+#include "7_cutlass.cuh"
+#include "8_warptiling_tensor_cores.cuh"

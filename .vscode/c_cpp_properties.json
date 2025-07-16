@@ -24,6 +24,8 @@
             "includePath": [
                 "include/",
                 "${workspaceFolder}/include",
+                "${workspaceFolder}/external/cutlass/include",
+                "${workspaceFolder}/build",
                 "/usr/include",
                 "/usr/local/include",
                 "/usr/include/c++/13/",

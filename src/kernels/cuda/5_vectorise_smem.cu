@@ -5,9 +5,8 @@ __global__ void sgemm_vectorise_smem_and_gmem_accesses_row_major(
     int M, int N, int K, float alpha, const float *A, const float *B,
     float beta, float *C) {
 
-  // Add padding to avoid shared memory bank conflicts in A
-  __shared__ float As[BK][BM + 1]; // +1 to break stride-32 conflict
-  __shared__ float Bs[BK][BN];
+  __shared__ float As[BM * BK];
+  __shared__ float Bs[BK * BN];
 
   float regM[TM] = {0.0f};
   float regN[TN] = {0.0f};
@@ -16,66 +15,45 @@ __global__ void sgemm_vectorise_smem_and_gmem_accesses_row_major(
   const int threadId = threadIdx.x;
   const int threadsPerBlock = blockDim.x;
 
-  const int threadRow = threadId / (BN / TN); // TM thread
-  const int threadCol = threadId % (BN / TN); // TN thread
-
-  // For vectorized load
-  const int A_vecWidth = 4;
-  const int B_vecWidth = 4;
-
-  // How many float4s are needed to cover the tile
-  const int numAFloat4s = (BK * BM) / A_vecWidth;
-  const int numBFloat4s = (BK * BN) / B_vecWidth;
+  const int threadRow = threadId / (BN / TN);
+  const int threadCol = threadId % (BN / TN);
 
   for (int bk = 0; bk < K; bk += BK) {
-
-    // === Load A with float4 and transpose ===
-    for (int i = threadId; i < numAFloat4s; i += threadsPerBlock) {
-      int flatIdx = i * A_vecWidth;
-      int row = flatIdx / BK;
-      int col = flatIdx % BK;
-
+    // Load tile of A into shared memory
+    for (int i = threadId; i < BM * BK; i += threadsPerBlock) {
+      int row = i / BK;
+      int col = i % BK;
       int globalRow = blockIdx.y * BM + row;
       int globalCol = bk + col;
 
-      float4 tmp = {0.f, 0.f, 0.f, 0.f};
-      if (globalRow < M && globalCol + 3 < K) {
-        tmp = *reinterpret_cast<const float4 *>(&A[globalRow * K + globalCol]);
-      }
-
-      // Write transposed into shared memory: As[col + offset][row]
-      As[col + 0][row] = tmp.x;
-      As[col + 1][row] = tmp.y;
-      As[col + 2][row] = tmp.z;
-      As[col + 3][row] = tmp.w;
+      if (globalRow < M && globalCol < K)
+        As[row * BK + col] = A[globalRow * K + globalCol];
+      else
+        As[row * BK + col] = 0.0f;
     }
 
-    // === Load B with float4 (no transpose) ===
-    for (int i = threadId; i < numBFloat4s; i += threadsPerBlock) {
-      int flatIdx = i * B_vecWidth;
-      int row = flatIdx / BN;
-      int col = flatIdx % BN;
-
+    // Load tile of B into shared memory
+    for (int i = threadId; i < BK * BN; i += threadsPerBlock) {
+      int row = i / BN;
+      int col = i % BN;
       int globalRow = bk + row;
       int globalCol = blockIdx.x * BN + col;
 
-      float4 tmp = {0.f, 0.f, 0.f, 0.f};
-      if (globalRow < K && globalCol + 3 < N) {
-        tmp = *reinterpret_cast<const float4 *>(&B[globalRow * N + globalCol]);
-      }
-
-      *reinterpret_cast<float4 *>(&Bs[row][col]) = tmp;
+      if (globalRow < K && globalCol < N)
+        Bs[row * BN + col] = B[globalRow * N + globalCol];
+      else
+        Bs[row * BN + col] = 0.0f;
     }
 
     __syncthreads();
 
-    // === Compute TM x TN tile ===
+    // Compute TM x TN tile
     for (int k = 0; k < BK; ++k) {
       for (int i = 0; i < TM; ++i)
-        regM[i] = As[k][threadRow * TM + i]; // A is now As[dot][row]
+        regM[i] = As[(threadRow * TM + i) * BK + k];
 
       for (int i = 0; i < TN; ++i)
-        regN[i] = Bs[k][threadCol * TN + i];
+        regN[i] = Bs[k * BN + threadCol * TN + i];
 
       for (int i = 0; i < TM; ++i)
         for (int j = 0; j < TN; ++j)
@@ -85,7 +63,7 @@ __global__ void sgemm_vectorise_smem_and_gmem_accesses_row_major(
     __syncthreads();
   }
 
-  // === Write back ===
+  // Write back the result to global memory
   for (int i = 0; i < TM; ++i) {
     int globalRow = blockIdx.y * BM + threadRow * TM + i;
     if (globalRow >= M)
@@ -106,3 +84,13 @@ template <const int BM, const int BN, const int BK, const int TM, const int TN>
 __global__ void sgemm_vectorise_smem_and_gmem_accesses_column_major(
     int M, int N, int K, float alpha, const float *A, const float *B,
     float beta, float *C) {}
+
+template __global__ void
+sgemm_vectorise_smem_and_gmem_accesses_row_major<64, 64, 16, 4, 4>(
+    int, int, int, float, const float *, const float *, float, float *);
+template __global__ void
+sgemm_vectorise_smem_and_gmem_accesses_row_major<64, 64, 32, 4, 4>(
+    int, int, int, float, const float *, const float *, float, float *);
+template __global__ void
+sgemm_vectorise_smem_and_gmem_accesses_row_major<64, 64, 64, 4, 4>(
+    int, int, int, float, const float *, const float *, float, float *);

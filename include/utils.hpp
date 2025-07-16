@@ -2,10 +2,14 @@
 
 #include "types.hpp"
 #include <cmath>
+#include <cuda_fp16.h> // for __half
 #include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <string>
+#include <type_traits>
+
+const int WARPSIZE = 32;
 
 #define PRINT_FUNC_NAME(func) std::cout << #func << std::endl;
 
@@ -25,16 +29,36 @@ template <typename T> constexpr int count_memory(int M, int N, int K) {
   return size * (M * K + K * N + 2 * M * N);
 }
 
-template <typename T> void randomise_matrix(T *mat, int size, bool seeded) {
+// template <typename T> void randomise_matrix(T *mat, int size, bool seeded) {
+//   if (!seeded) {
+//     srand(time(nullptr));
+//     seeded = true;
+//   }
+
+//   for (int i = 0; i < size; i++) {
+//     T tmp = (T)(5.0 * ((T)rand() / RAND_MAX) + 0.01 * (rand() % 100));
+//     tmp = (rand() % 2 == 0) ? tmp : -tmp;
+//     mat[i] = tmp;
+//   }
+// }
+
+template <typename T>
+void randomise_matrix(T *mat, int size, bool seeded = false) {
   if (!seeded) {
-    srand(time(nullptr));
+    srand(static_cast<unsigned>(time(nullptr)));
     seeded = true;
   }
 
   for (int i = 0; i < size; i++) {
-    T tmp = (T)(5.0 * ((T)rand() / RAND_MAX) + 0.01 * (rand() % 100));
-    tmp = (rand() % 2 == 0) ? tmp : -tmp;
-    mat[i] = tmp;
+    float val =
+        5.0f * (static_cast<float>(rand()) / RAND_MAX) + 0.01f * (rand() % 100);
+    val = (rand() % 2 == 0) ? val : -val;
+
+    if constexpr (std::is_same<T, half>::value) {
+      mat[i] = __float2half(val);
+    } else {
+      mat[i] = static_cast<T>(val);
+    }
   }
 }
 

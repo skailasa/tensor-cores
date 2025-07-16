@@ -16,6 +16,10 @@ int main() {
   int K = 4096;
   int N = 4096;
 
+  // int M = 512;
+  // int K = 512;
+  // int N = 512;
+
   float *A = new float[M * K];
   zero_init_matrix<float>(A, M * K);
   randomise_matrix<float>(A, M * K, false);
@@ -24,7 +28,7 @@ int main() {
   zero_init_matrix<float>(B, K * N);
   randomise_matrix<float>(B, K * N, false);
   auto layout = Layout::RowMajor;
-  auto cache_configuration = cudaFuncCachePreferL1;
+  auto cache_configuration = cudaFuncCachePreferShared;
 
   const std::string logFile = "logFile.txt";
 

@@ -59,8 +59,8 @@ void runCublasT32(cublasHandle_t handle, Layout layout, int M, int N, int K,
 
 /// @brief  Call cubLAS with single precision inputs casted down to F16 for the
 /// actual mul
-void runCublasF16(cublasHandle_t handle, Layout layout, int M, int N, int K,
-                  float alpha, float *A, float *B, float beta, float *C) {
+void runCublasF32F16(cublasHandle_t handle, Layout layout, int M, int N, int K,
+                     float alpha, float *A, float *B, float beta, float *C) {
   if (layout == Layout::RowMajor) {
     cublasGemmEx(handle, CUBLAS_OP_N, CUBLAS_OP_N, N, M, K, &alpha, B,
                  CUDA_R_32F, N, A, CUDA_R_32F, K, &beta, C, CUDA_R_32F, N,
@@ -69,6 +69,19 @@ void runCublasF16(cublasHandle_t handle, Layout layout, int M, int N, int K,
     cublasGemmEx(handle, CUBLAS_OP_N, CUBLAS_OP_N, M, N, K, &alpha, A,
                  CUDA_R_32F, M, B, CUDA_R_32F, K, &beta, C, CUDA_R_32F, M,
                  CUBLAS_COMPUTE_32F_FAST_16F, CUBLAS_GEMM_DEFAULT);
+  }
+}
+
+void runCublasF16(cublasHandle_t handle, Layout layout, int M, int N, int K,
+                  half alpha, half *A, half *B, half beta, half *C) {
+  if (layout == Layout::RowMajor) {
+    cublasGemmEx(handle, CUBLAS_OP_N, CUBLAS_OP_N, N, M, K, &alpha, B,
+                 CUDA_R_16F, N, A, CUDA_R_16F, K, &beta, C, CUDA_R_16F, N,
+                 CUBLAS_COMPUTE_16F, CUBLAS_GEMM_DEFAULT_TENSOR_OP);
+  } else if (layout == Layout::ColumnMajor) {
+    cublasGemmEx(handle, CUBLAS_OP_N, CUBLAS_OP_N, M, N, K, &alpha, A,
+                 CUDA_R_16F, M, B, CUDA_R_16F, K, &beta, C, CUDA_R_16F, M,
+                 CUBLAS_COMPUTE_16F, CUBLAS_GEMM_DEFAULT_TENSOR_OP);
   }
 }
 
@@ -177,6 +190,154 @@ void runSgemm2dBlockTiling(Layout layout, cudaFuncCache cache_configuration,
   }
 }
 
+void runSgemmVectoriseSmem(Layout layout, cudaFuncCache cache_configuration,
+                           int M, int N, int K, float alpha, float *A, float *B,
+                           float beta, float *C) {
+
+  const uint BM = 64;
+  const uint BN = 64;
+  const uint BK = 64;
+  const uint TM = 4;
+  const uint TN = 4;
+  static_assert((BM % TM == 0) && (BN % TN == 0),
+                "BM must be divisible by TM and BN must be divisible by TN");
+
+  if (layout == Layout::RowMajor) {
+    dim3 gridDim(ceil_div(M, BM),
+                 ceil_div(N, BN)); // same as in shared mem cache blocking, but
+                                   // with tunable parameters
+    dim3 blockDim((BM * BN) / ((TM * TN)));
+    KernelPtr kernel =
+        sgemm_vectorise_smem_and_gmem_accesses_row_major<BM, BN, BK, TM, TN>;
+    cudaFuncSetCacheConfig(kernel, cache_configuration);
+    kernel<<<gridDim, blockDim>>>(M, N, K, alpha, A, B, beta, C);
+
+  } else if (layout == Layout::ColumnMajor) {
+    // dim3 gridDim(ceil_div(N, BN), ceil_div(M, BM)); // same as in shared mem
+    // // cache blocking, but with tunable parameters
+    // KernelPtr kernel =
+    //     sgemm_vectorise_smem_and_gmem_accesses_column_major<BM, BN, BK, TM,
+    //     TN>;
+    // cudaFuncSetCacheConfig(kernel, cache_configuration);
+    // kernel<<<gridDim, blockDim>>>(M, N, K, alpha, A, B, beta, C);
+  }
+}
+
+void runSgemmWarptiling(Layout layout, cudaFuncCache cache_configuration, int M,
+                        int N, int K, float alpha, float *A, float *B,
+                        float beta, float *C) {
+
+  const int NUM_THREADS = 128;
+  const int BM = 64;
+  const int BN = 64;
+  const int BK = 32;
+  const int WM = 32;
+  const int WN = 32;
+  const int TN = 4;
+  const int TM = 4;
+  const int WNITER = 2;
+  const int WMITER = (WM * WN) / (WARPSIZE * TM * TN * WNITER);
+  const int WSUBM =
+      WM / WMITER; // Sizes of each subtile after split by WMITER/WNITER
+  const int WSUBN = WN / WNITER; // These sizes are in units of physical entries
+  constexpr int threadsPerSubtileRow = WSUBM / TM;
+  constexpr int threadsPerSubtileCol = WSUBN / TN;
+  static_assert(threadsPerSubtileRow * threadsPerSubtileCol == WARPSIZE);
+
+  static_assert(WM != 0 && WMITER != 0, "WM and WMITER must be non-zero.");
+  static_assert(WM % WMITER == 0, "WM must be divisible by WMITER.");
+  static_assert((BM % TM == 0) && (BN % TN == 0),
+                "BM must be divisible by TM and BN must be divisible by TN");
+
+  if (layout == Layout::RowMajor) {
+    dim3 blockDim(NUM_THREADS);
+    dim3 gridDim(ceil_div(N, BN), ceil_div(M, BM));
+
+    sgemm_warptiling<BM, BN, BK, WM, WN, WNITER, WMITER, TM, TN, NUM_THREADS>
+        <<<gridDim, blockDim>>>(M, N, K, alpha, A, B, beta, C);
+    // cudaFuncSetCacheConfig(kernel, cache_configuration);
+    // kernel<<<gridDim, blockDim>>>(M, N, K, alpha, A, B, beta, C);
+
+  } else if (layout == Layout::ColumnMajor) {
+    // dim3 gridDim(ceil_div(N, BN), ceil_div(M, BM)); // same as in shared mem
+    // // cache blocking, but with tunable parameters
+    // KernelPtr kernel =
+    //     sgemm_vectorise_smem_and_gmem_accesses_column_major<BM, BN, BK, TM,
+    //     TN>;
+    // cudaFuncSetCacheConfig(kernel, cache_configuration);
+    // kernel<<<gridDim, blockDim>>>(M, N, K, alpha, A, B, beta, C);
+  }
+}
+
+void runHgemmWarptiling(Layout layout, cudaFuncCache cache_configuration, int M,
+                        int N, int K, half alpha, half *A, half *B, half beta,
+                        half *C) {
+
+  const int NUM_THREADS = 128;
+  const int BM = 64;
+  const int BN = 64;
+  const int BK = 32;
+
+  // Each warp tile 2x mma_m across
+  const int WM = 32;
+
+  // and 2x mma_n tall
+  const int WN = 32;
+
+  const int WK = 32;
+
+  if (layout == Layout::RowMajor) {
+    dim3 blockDim(NUM_THREADS);
+    dim3 gridDim(ceil_div(N, BN), ceil_div(M, BM));
+
+    hgemm_warptiling_tensor_cores<BM, BN, BK, WM, WN, WK, NUM_THREADS>
+        <<<gridDim, blockDim>>>(M, N, K, alpha, A, B, beta, C);
+  } else if (layout == Layout::ColumnMajor) {
+  }
+}
+
+void runSgemmCutlass(Layout layout, cudaFuncCache cache_configuration, int M,
+                     int N, int K, float alpha, float *A, float *B, float beta,
+                     float *C) {
+
+  dim3 gridDim(ceil_div(M, 32), ceil_div(N, 32));
+  dim3 blockDim(32, 32);
+  sgemm_cutlass<<<gridDim, blockDim>>>(M, N, K, alpha, A, B, beta, C);
+}
+
+float runKernel16(int kernel_number, Layout layout,
+                  cudaFuncCache cache_configuration, int M, int N, int K,
+                  half alpha, half *A, half *B, half beta, half *C) {
+
+  cublasHandle_t handle;                   // cublas context
+  auto _status = cublasCreate_v2(&handle); // initialize CUBLAS context
+  float time;
+
+  switch (kernel_number) {
+
+  case 0:
+    // warmup
+    runCublasF16(handle, layout, M, N, K, alpha, A, B, beta, C);
+    time = run_kernel_with_optional_timing(
+        [=]() { runCublasF16(handle, layout, M, N, K, alpha, A, B, beta, C); },
+        true);
+    return time;
+
+  case 1:
+    time = run_kernel_with_optional_timing(
+        [=]() {
+          runHgemmWarptiling(layout, cache_configuration, M, N, K, alpha, A, B,
+                             beta, C);
+        },
+        true);
+    return time;
+    break;
+
+  default:
+    break;
+  }
+}
+
 float runKernel32(int kernel_number, Layout layout,
                   cudaFuncCache cache_configuration, int M, int N, int K,
                   float alpha, float *A, float *B, float beta, float *C) {
@@ -223,9 +384,11 @@ float runKernel32(int kernel_number, Layout layout,
   // cuBLAS with half precision
   case 3:
     // Warmup call
-    runCublasF16(handle, layout, M, N, K, alpha, A, B, beta, C);
+    runCublasF32F16(handle, layout, M, N, K, alpha, A, B, beta, C);
     time = run_kernel_with_optional_timing(
-        [=]() { runCublasF16(handle, layout, M, N, K, alpha, A, B, beta, C); },
+        [=]() {
+          runCublasF32F16(handle, layout, M, N, K, alpha, A, B, beta, C);
+        },
         true);
 
     return time;
@@ -244,7 +407,7 @@ float runKernel32(int kernel_number, Layout layout,
     break;
 
   // single naive kernel
-  case 7:
+  case 5:
     time = run_kernel_with_optional_timing(
         [=]() {
           runSgemmSharedMemCacheBlocking(layout, cache_configuration, M, N, K,
@@ -254,10 +417,30 @@ float runKernel32(int kernel_number, Layout layout,
 
     break;
 
-  case 8:
+  case 6:
     time = run_kernel_with_optional_timing(
         [=]() {
           runSgemm1dBlockTiling(layout, cache_configuration, M, N, K, alpha, A,
+                                B, beta, C);
+        },
+        true);
+
+    break;
+
+  case 7:
+    time = run_kernel_with_optional_timing(
+        [=]() {
+          runSgemm1dBlockTiling(layout, cache_configuration, M, N, K, alpha, A,
+                                B, beta, C);
+        },
+        true);
+
+    break;
+
+  case 8:
+    time = run_kernel_with_optional_timing(
+        [=]() {
+          runSgemm2dBlockTiling(layout, cache_configuration, M, N, K, alpha, A,
                                 B, beta, C);
         },
         true);
@@ -267,7 +450,7 @@ float runKernel32(int kernel_number, Layout layout,
   case 9:
     time = run_kernel_with_optional_timing(
         [=]() {
-          runSgemm1dBlockTiling(layout, cache_configuration, M, N, K, alpha, A,
+          runSgemmVectoriseSmem(layout, cache_configuration, M, N, K, alpha, A,
                                 B, beta, C);
         },
         true);
@@ -277,11 +460,18 @@ float runKernel32(int kernel_number, Layout layout,
   case 10:
     time = run_kernel_with_optional_timing(
         [=]() {
-          runSgemm2dBlockTiling(layout, cache_configuration, M, N, K, alpha, A,
-                                B, beta, C);
+          runSgemmWarptiling(layout, cache_configuration, M, N, K, alpha, A, B,
+                             beta, C);
         },
         true);
 
+    break;
+
+  case 11:
+    time = run_kernel_with_optional_timing([=]() {
+      runSgemmCutlass(layout, cache_configuration, M, N, K, alpha, A, B, beta,
+                      C);
+    });
     break;
 
   default:
